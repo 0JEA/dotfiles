@@ -1,0 +1,50 @@
+# ==============================================================================
+# STARSHIP CONFIGURATION (TOKYO NIGHT / CONNECTED PILLS)
+# ==============================================================================
+
+# Use a clean, one-line format
+format = """
+$os\
+$directory\
+$git_branch\
+$git_status\
+$character
+"""
+
+# --- OS ICON SEGMENT (The Slanted Start) ---
+[os]
+disabled = false
+style = "bg:#ff9e64 fg:#1a1b26 bold"
+# The  slant starts the whole prompt in orange.
+format = "[](#ff9e64)[$symbol]($style)"
+
+[os.symbols]
+Arch = "󰣇 "
+
+# --- DIRECTORY SEGMENT (Connected to OS) ---
+[directory]
+style = "bg:#7aa2f7 fg:#1a1b26 bold"
+# This segment starts with a rounded cap () that has the ORANGE background
+# and the BLUE foreground, making it look perfectly connected.
+format = "[](fg:#ff9e64 bg:#7aa2f7)[ $path ]($style)[](#7aa2f7) "
+truncation_length = 3
+truncation_symbol = "…/"
+
+# --- GIT PILL ---
+[git_branch]
+symbol = ""
+style = "bg:#bb9af7 fg:#1a1b26 bold"
+# Git is optional, so we'll keep it as a standalone pill for safety.
+format = "[](#bb9af7)[$symbol $branch]($style)"
+
+[git_status]
+style = "bg:#bb9af7 fg:#1a1b26 bold"
+format = "[$all_status$ahead_behind]($style)[](#bb9af7) "
+
+# --- PROMPT SYMBOL ---
+[character]
+success_symbol = "[❯ ](bold #7dcfff)"
+error_symbol = "[❯ ](bold #f7768e)"
+
+[line_break]
+disabled = true

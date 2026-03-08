@@ -1,0 +1,35 @@
+[manager]
+ratio          = [ 1, 3, 4 ]
+sort_by        = "natural"
+sort_sensitive = false
+sort_reverse   = false
+sort_dir_first = true
+show_hidden    = true
+show_symlink   = true
+
+[preview]
+tab_size   = 2
+max_width  = 1200
+max_height = 1000
+
+[opener]
+edit = [
+	{ run = 'nvim "$@"', block = true, desc = "Edit" },
+]
+
+[open]
+rules = [
+	{ name = "*/", use = [ "edit", "open", "reveal" ] },
+	{ mime = "text/*", use = [ "edit", "open", "reveal" ] },
+	{ mime = "application/json", use = [ "edit", "open", "reveal" ] },
+	{ mime = "application/javascript", use = [ "edit", "open", "reveal" ] },
+	{ name = "*.asm", use = [ "edit", "open", "reveal" ] },
+	{ name = "*.s", use = [ "edit", "open", "reveal" ] },
+	{ name = "*.css", use = [ "edit", "open", "reveal" ] },
+	{ name = "*.html", use = [ "edit", "open", "reveal" ] },
+	{ name = "*.lua", use = [ "edit", "open", "reveal" ] },
+	{ name = "*.py", use = [ "edit", "open", "reveal" ] },
+	{ name = "*.cpp", use = [ "edit", "open", "reveal" ] },
+	{ name = "*.c", use = [ "edit", "open", "reveal" ] },
+	{ name = "*.h", use = [ "edit", "open", "reveal" ] },
+]

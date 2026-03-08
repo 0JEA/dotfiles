@@ -1,0 +1,35 @@
+# Ignore large data and cache directories
+chromium/
+discord/
+obsidian/
+**/Cache/
+**/Code Cache/
+**/GPUCache/
+**/*.log
+**/*.old
+**/*.bak
+**/*.db
+**/*.db-journal
+**/*.wal
+**/*.shada
+**/*.swp
+**/*.swo
+**/.dds
+**/sessions/
+**/undo/
+**/swap/
+**/ShaderCache/
+**/leveldb/
+**/index/
+**/LOG
+**/MANIFEST*
+**/CURRENT
+**/LOCK
+**/Session Storage/
+**/Local Storage/
+**/Sync Data/
+**/VideoDecodeStats/
+**/GrShaderCache/
+**/DawnGraphiteCache/
+**/DawnWebGPUCache/
+**/segmentation_platform/
