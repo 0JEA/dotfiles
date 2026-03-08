@@ -10,8 +10,8 @@ alias tree='eza --tree --icons'
 alias grep='grep --color=auto'
 
 # Hide tmux status bar when running apps
-alias nvim='tmux set status off && nvim "$@" && tmux set status on'
-alias yazi='tmux set status off && yazi "$@" && tmux set status on'
+nvim() { tmux set status off; command nvim "$@"; tmux set status on; }
+yazi() { tmux set status off; command yazi "$@"; tmux set status on; }
 
 # --- STARSHIP PROMPT ---
 eval "$(starship init bash)"
@@ -22,3 +22,4 @@ eval "$(starship init bash)"
 if [[ -z "$TMUX" ]] && [[ "$TERM" != "linux" ]]; then
     exec tmux new-session
 fi
+export PATH="$HOME/.local/bin:$PATH"

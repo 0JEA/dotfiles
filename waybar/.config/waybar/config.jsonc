@@ -1,71 +1,95 @@
 {
+    // ── Bar geometry ──────────────────────────────────────────────────────
+    // Rendered as an overlay above all windows; margin creates the floating gap.
     "layer": "top",
     "position": "top",
-    "height": 32,
-    "margin-top": 5,
-    "margin-left": 10,
-    "margin-right": 10,
-    "spacing": 4,
-    "modules-left": ["clock", "hyprland/window"],
-    "modules-center": ["hyprland/workspaces"],
-    "modules-right": ["pulseaudio", "network", "backlight", "battery", "tray"],
+    "height": 28,
+    "margin-top": 6,    // floating gap from the top edge of the screen
+    "margin-left": 12,
+    "margin-right": 12,
+    "spacing": 0,       // inter-module spacing is handled per-pill via CSS margin
 
+    // ── Module layout ─────────────────────────────────────────────────────
+    "modules-left":   ["clock", "hyprland/window"],
+    "modules-center": ["hyprland/workspaces"],
+    "modules-right":  ["custom/battery-power", "pulseaudio", "backlight", "tray"],
+
+    // ── Workspaces ────────────────────────────────────────────────────────
+    // Uses filled/hollow circles so active workspace is visually obvious
+    // without relying on color alone. sort-by-number keeps order stable
+    // even when workspaces are created out of sequence.
     "hyprland/workspaces": {
         "format": "{icon}",
         "on-click": "activate",
         "format-icons": {
-            "active": "",
-            "default": ""
+            "active":  "●",
+            "default": "○"
         },
         "sort-by-number": true
     },
 
+    // ── Active window title ───────────────────────────────────────────────
+    // separate-outputs ensures each monitor shows only its own focused window.
+    // The rewrite replaces an empty title (bare desktop / no window) with a
+    // readable fallback instead of showing a blank pill.
+    "hyprland/window": {
+        "format": "{title}",
+        "rewrite": { "^$": "Desktop" },
+        "max-length": 40,
+        "separate-outputs": true
+    },
+
+    // ── Clock ─────────────────────────────────────────────────────────────
+    // Left-click toggles between HH:MM and ISO date via format-alt.
+    // The tooltip shows a full calendar month using Pango markup.
     "clock": {
-        "format": "{:%H:%M}",
-        "tooltip-format": "<big>{:%Y %B}</big>\n<tt><small>{calendar}</small></tt>",
-        "format-alt": "{:%Y-%m-%d}"
+        "format":     "{:%H:%M}",
+        "format-alt": "{:%Y-%m-%d}",
+        "tooltip-format": "<big>{:%Y %B}</big>\n<tt><small>{calendar}</small></tt>"
     },
 
-    "battery": {
-        "states": {
-            "warning": 30,
-            "critical": 15
-        },
-        "format": "{capacity}% {icon}",
-        "format-charging": "{capacity}% ",
-        "format-plugged": "{capacity}% ",
-        "format-alt": "{time} {icon}",
-        "format-icons": ["", "", "", "", ""]
+    // ── Battery + power profile (custom module) ───────────────────────────
+    // Calls battery-power.sh every 10 s for the JSON status output.
+    // Left-click runs the script in --toggle mode to cycle the power profile,
+    // then sends SIGRTMIN+8 to waybar to force an immediate refresh rather
+    // than waiting for the next 10-second poll. signal:8 registers this
+    // process signal so waybar knows to re-exec the module on demand.
+    "custom/battery-power": {
+        "exec":        "~/.config/waybar/scripts/battery-power.sh",
+        "return-type": "json",
+        "interval":    10,
+        "on-click":    "~/.config/waybar/scripts/battery-power.sh --toggle && pkill -RTMIN+8 waybar",
+        "signal":      8
     },
 
-    "network": {
-        "format-wifi": "{essid} ({signalStrength}%) ",
-        "format-ethernet": "{ifname} ",
-        "format-disconnected": "Disconnected ⚠",
-        "format-alt": "{ifname}: {ipaddr}/{cidr}"
-    },
-
+    // ── Audio (PulseAudio / PipeWire via PulseAudio compat) ───────────────
+    // format-icons cycles through three volume glyphs (low / mid / high).
+    // format-source / format-source-muted cover the microphone state,
+    // shown when the source is active. Right-click mutes the default mic.
     "pulseaudio": {
-        "format": "{volume}% {icon} {format_source}",
-        "format-bluetooth": "{volume}% {icon} {format_source}",
-        "format-bluetooth-muted": " {icon} {format_source}",
-        "format-muted": " {format_source}",
-        "format-source": "{volume}% ",
-        "format-source-muted": "",
-        "format-icons": {
-            "headphone": "",
-            "hands-free": "",
-            "headset": "",
-            "phone": "",
-            "portable": "",
-            "car": "",
-            "default": ["", "", ""]
-        },
-        "on-click": "pavucontrol"
+        "format":              "{icon} {volume}%",
+        "format-muted":        "󰝟",
+        "format-source":       "󰍬 {volume}%",
+        "format-source-muted": "󰍭",
+        "format-icons":        { "default": ["󰕿", "󰖀", "󰕾"] },
+        "on-click":            "pavucontrol",
+        "on-click-right":      "pactl set-source-mute @DEFAULT_SOURCE@ toggle",
+        "scroll-step":         5
     },
 
+    // ── Backlight ─────────────────────────────────────────────────────────
+    // Icon-only display; three glyphs represent low / mid / high brightness.
+    // Scroll wheel adjusts brightness in 5% steps via the kernel backlight interface.
     "backlight": {
-        "format": "{percent}% {icon}",
-        "format-icons": ["", ""]
+        "format":       "{icon}",
+        "format-icons": ["󰃞", "󰃟", "󰃠"],
+        "scroll-step":  5
+    },
+
+    // ── System tray ───────────────────────────────────────────────────────
+    // Hosts applets for network manager, clipboard managers, etc.
+    // Spacing separates icons from each other inside the shared pill.
+    "tray": {
+        "spacing": 8
     }
 }
