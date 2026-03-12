@@ -1,0 +1,49 @@
+[config]
+reload_apps = false
+
+[config.custom_colors]
+bg        = { color = "#1a1b26", blend = false }
+bg_dark   = { color = "#16161e", blend = false }
+bg_hl     = { color = "#24283b", blend = false }
+fg        = { color = "#c0caf5", blend = false }
+fg_light  = { color = "#a9b1d6", blend = false }
+comment   = { color = "#565f89", blend = false }
+blue      = { color = "#7aa2f7", blend = false }
+cyan      = { color = "#7dcfff", blend = false }
+magenta   = { color = "#bb9af7", blend = false }
+green     = { color = "#9ece6a", blend = false }
+yellow    = { color = "#e0af68", blend = false }
+orange    = { color = "#ff9e64", blend = false }
+red       = { color = "#f7768e", blend = false }
+selection = { color = "#33467c", blend = false }
+gray      = { color = "#292e42", blend = false }
+gray2     = { color = "#3b4261", blend = false }
+bright_black = { color = "#414868", blend = false }
+
+[templates.kitty]
+input_path  = "~/dotfiles/theme/templates/kitty.conf.tera"
+output_path = "~/.config/kitty/kitty.conf"
+
+[templates.waybar]
+input_path  = "~/dotfiles/theme/templates/waybar.css.tera"
+output_path = "~/.config/waybar/style.css"
+
+[templates.tmux]
+input_path  = "~/dotfiles/theme/templates/tmux.conf.tera"
+output_path = "~/.tmux.conf"
+
+[templates.wofi]
+input_path  = "~/dotfiles/theme/templates/wofi.css.tera"
+output_path = "~/.config/wofi/style.css"
+
+[templates.starship]
+input_path  = "~/dotfiles/theme/templates/starship.toml.tera"
+output_path = "~/.config/starship.toml"
+
+[templates.lazygit]
+input_path  = "~/dotfiles/theme/templates/lazygit.yml.tera"
+output_path = "~/.config/lazygit/config.yml"
+
+[templates.hyprlock]
+input_path  = "~/dotfiles/theme/templates/hyprlock.conf.tera"
+output_path = "~/.config/hypr/hyprlock.conf"

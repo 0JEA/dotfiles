@@ -17,20 +17,21 @@ when = "true"
 format = "$output"
 shell = ["bash"]
 
-# --- GIT SEGMENT ---
+# --- GIT PILL ---
 [git_branch]
-symbol = "\uE702"
-style = "bg:#73daca fg:#1a1b26 bold"
-format = " [\uE0B6](#73daca)[$symbol $branch]($style)"
+symbol = ""
+style = "bg:{{ colors.magenta_source.default.hex }} fg:{{ colors.bg_source.default.hex }} bold"
+# Git is optional, so we'll keep it as a standalone pill for safety.
+format = "[]({{ colors.magenta_source.default.hex }})[$symbol $branch]($style)"
 
 [git_status]
-style = "bg:#73daca fg:#1a1b26 bold"
-format = "[$all_status$ahead_behind]($style)[\uE0B4](fg:#73daca) "
+style = "bg:{{ colors.magenta_source.default.hex }} fg:{{ colors.bg_source.default.hex }} bold"
+format = "[$all_status$ahead_behind]($style)[]({{ colors.magenta_source.default.hex }}) "
 
 # --- PROMPT SYMBOL ---
 [character]
-success_symbol = "[❯ ](bold #7dcfff)"
-error_symbol = "[❯ ](bold #f7768e)"
+success_symbol = "[❯ ](bold {{ colors.cyan_source.default.hex }})"
+error_symbol = "[❯ ](bold {{ colors.red_source.default.hex }})"
 
 [line_break]
 disabled = true

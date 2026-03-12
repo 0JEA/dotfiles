@@ -25,21 +25,14 @@ set -g mouse on
 set -g status off
 set -g destroy-unattached on # Kill session when terminal window is closed
 
-# --- CLIPBOARD (Wayland) ---
-# Copy to system clipboard on mouse drag release; stay in copy mode so
-# the selection remains visible until you click elsewhere.
-set -g set-clipboard off
-bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe "wl-copy"
-bind-key -T copy-mode MouseDragEnd1Pane send-keys -X copy-pipe "wl-copy"
-
 # --- TOKYO NIGHT PRO PALETTE (Reference) ---
-# BG: #1a1b26 | BLUE: #7aa2f7 | CYAN: #7dcfff | MAGENTA: #bb9af7 | GRAY: #3b4261
+# BG: {{ colors.bg_source.default.hex }} | BLUE: {{ colors.blue_source.default.hex }} | CYAN: {{ colors.cyan_source.default.hex }} | MAGENTA: {{ colors.magenta_source.default.hex }} | GRAY: {{ colors.gray2_source.default.hex }}
 
 # --- MESSAGE & BORDER STYLING ---
 # Colors used for messages (like "Config reloaded!") and pane borders.
-set -g message-style "fg=#7aa2f7,bg=#3b4261,bold"
-set -g pane-border-style "fg=#3b4261"
-set -g pane-active-border-style "fg=#7aa2f7"
+set -g message-style "fg={{ colors.blue_source.default.hex }},bg={{ colors.gray2_source.default.hex }},bold"
+set -g pane-border-style "fg={{ colors.gray2_source.default.hex }}"
+set -g pane-active-border-style "fg={{ colors.blue_source.default.hex }}"
 
 # --- PLUGIN MANAGEMENT (TPM) ---
 # TPM: Tmux Plugin Manager

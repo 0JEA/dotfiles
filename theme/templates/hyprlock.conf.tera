@@ -12,7 +12,7 @@ background {
 label {
     monitor =
     text = cmd[update:1000] echo "<b>$(date +"%H:%M")</b>"
-    color = rgba(192, 202, 245, 1.0)
+    color = rgba({{ colors.fg_source.default.red }}, {{ colors.fg_source.default.green }}, {{ colors.fg_source.default.blue }}, 1.0)
     font_size = 72
     font_family = JetBrainsMono Nerd Font Bold
     position = 0, 120
@@ -24,7 +24,7 @@ label {
 label {
     monitor =
     text = cmd[update:60000] echo "$(date +"%A, %B %-d")"
-    color = rgba(122, 162, 247, 0.85)
+    color = rgba({{ colors.blue_source.default.red }}, {{ colors.blue_source.default.green }}, {{ colors.blue_source.default.blue }}, 0.85)
     font_size = 18
     font_family = JetBrainsMono Nerd Font
     position = 0, 50
@@ -40,17 +40,17 @@ input-field {
     dots_size = 0.25
     dots_spacing = 0.25
     dots_center = true
-    outer_color = rgba(36, 40, 59, 0.90)
-    inner_color = rgba(26, 27, 38, 0.95)
-    font_color = rgba(192, 202, 245, 1.0)
+    outer_color = rgba({{ colors.bg_hl_source.default.red }}, {{ colors.bg_hl_source.default.green }}, {{ colors.bg_hl_source.default.blue }}, 0.90)
+    inner_color = rgba({{ colors.bg_source.default.red }}, {{ colors.bg_source.default.green }}, {{ colors.bg_source.default.blue }}, 0.95)
+    font_color = rgba({{ colors.fg_source.default.red }}, {{ colors.fg_source.default.green }}, {{ colors.fg_source.default.blue }}, 1.0)
     fade_on_empty = true
     placeholder_text = <i>password</i>
     hide_input = false
     rounding = 50
-    check_color = rgba(158, 206, 106, 1.0)
-    fail_color = rgba(247, 118, 142, 1.0)
+    check_color = rgba({{ colors.green_source.default.red }}, {{ colors.green_source.default.green }}, {{ colors.green_source.default.blue }}, 1.0)
+    fail_color = rgba({{ colors.red_source.default.red }}, {{ colors.red_source.default.green }}, {{ colors.red_source.default.blue }}, 1.0)
     fail_text = <i>wrong password</i>
-    capslock_color = rgba(224, 175, 104, 1.0)
+    capslock_color = rgba({{ colors.yellow_source.default.red }}, {{ colors.yellow_source.default.green }}, {{ colors.yellow_source.default.blue }}, 1.0)
     position = 0, -60
     halign = center
     valign = center
@@ -60,7 +60,7 @@ input-field {
 label {
     monitor =
     text = cmd[update:30000] bash -c 'BAT=$(cat /sys/class/power_supply/BAT0/capacity); STATUS=$(cat /sys/class/power_supply/BAT0/status); if [ "$STATUS" = "Charging" ]; then ICON="󰂄"; elif [ $BAT -ge 90 ]; then ICON="󰁹"; elif [ $BAT -ge 70 ]; then ICON="󰂀"; elif [ $BAT -ge 50 ]; then ICON="󰁾"; elif [ $BAT -ge 30 ]; then ICON="󰁼"; elif [ $BAT -ge 10 ]; then ICON="󰁺"; else ICON="󰁻"; fi; echo "$ICON $BAT%"'
-    color = rgba(122, 162, 247, 0.80)
+    color = rgba({{ colors.blue_source.default.red }}, {{ colors.blue_source.default.green }}, {{ colors.blue_source.default.blue }}, 0.80)
     font_size = 14
     font_family = JetBrainsMono Nerd Font
     position = -20, -20

@@ -1,0 +1,25 @@
+gui:
+  theme:
+    activeBorderColor:
+      - '{{ colors.blue_source.default.hex }}'
+      - bold
+    inactiveBorderColor:
+      - '{{ colors.gray_source.default.hex }}'
+    optionsTextColor:
+      - '{{ colors.blue_source.default.hex }}'
+    selectedLineBgColor:
+      - '{{ colors.selection_source.default.hex }}'
+    selectedRangeBgColor:
+      - '{{ colors.selection_source.default.hex }}'
+    cherryPickedCommitBgColor:
+      - '#449dab'
+    cherryPickedCommitFgColor:
+      - '{{ colors.gray2_source.default.hex }}'
+    unstagedChangesColor:
+      - '{{ colors.red_source.default.hex }}'
+    defaultFgColor:
+      - '{{ colors.fg_source.default.hex }}'
+git:
+  paging:
+    colorArg: always
+    pager: delta --dark --paging=never

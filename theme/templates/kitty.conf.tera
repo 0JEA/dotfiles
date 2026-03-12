@@ -1,0 +1,57 @@
+# vim:ft=kitty
+
+## --- FONT ---
+font_family      JetBrainsMono Nerd Font
+bold_font        auto
+italic_font      auto
+bold_italic_font auto
+font_size        10.0
+
+## --- WINDOW ---
+window_padding_width 4
+hide_window_decorations yes
+confirm_os_window_close 0
+
+## --- COLORS (Tokyo Night) ---
+background {{ colors.bg_source.default.hex }}
+foreground {{ colors.fg_source.default.hex }}
+selection_background {{ colors.selection_source.default.hex }}
+selection_foreground {{ colors.fg_source.default.hex }}
+url_color #73daca
+cursor {{ colors.fg_source.default.hex }}
+cursor_text_color {{ colors.bg_source.default.hex }}
+
+# Tabs
+active_tab_background {{ colors.blue_source.default.hex }}
+active_tab_foreground {{ colors.bg_dark_source.default.hex }}
+inactive_tab_background {{ colors.gray_source.default.hex }}
+inactive_tab_foreground #545c7e
+tab_bar_background #15161e
+
+# Windows
+active_border_color {{ colors.blue_source.default.hex }}
+inactive_border_color {{ colors.gray_source.default.hex }}
+
+# Normal Colors
+color0 #15161e
+color1 {{ colors.red_source.default.hex }}
+color2 {{ colors.green_source.default.hex }}
+color3 {{ colors.yellow_source.default.hex }}
+color4 {{ colors.blue_source.default.hex }}
+color5 {{ colors.magenta_source.default.hex }}
+color6 {{ colors.cyan_source.default.hex }}
+color7 {{ colors.fg_light_source.default.hex }}
+
+# Bright Colors
+color8 {{ colors.bright_black_source.default.hex }}
+color9 {{ colors.red_source.default.hex }}
+color10 {{ colors.green_source.default.hex }}
+color11 {{ colors.yellow_source.default.hex }}
+color12 {{ colors.blue_source.default.hex }}
+color13 {{ colors.magenta_source.default.hex }}
+color14 {{ colors.cyan_source.default.hex }}
+color15 {{ colors.fg_source.default.hex }}
+
+# Extended Colors
+color16 {{ colors.orange_source.default.hex }}
+color17 #db4b4b

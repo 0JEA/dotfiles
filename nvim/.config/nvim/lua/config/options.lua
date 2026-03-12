@@ -5,6 +5,9 @@
 vim.g.mapleader = " "
 vim.g.maplocalleader = "\\"
 
+-- Disable SQL ftplugin's built-in omni-completion and navigation maps
+vim.g.omni_sql_no_default_maps = 1
+
 -- LazyVim root dir detection
 -- each entry can be:
 -- * the name of a detector function like `lsp` or `cwd`

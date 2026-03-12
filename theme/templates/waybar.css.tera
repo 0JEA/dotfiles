@@ -1,0 +1,150 @@
+/* ── Tokyo Night palette ────────────────────────────────────────────────────
+   Named variables mirror the project-wide theme so color changes only need
+   to happen in one place. bg uses rgba so the pill floats with slight
+   transparency against the wallpaper.                                        */
+@define-color bg       rgba({{ colors.bg_hl_source.default.red }}, {{ colors.bg_hl_source.default.green }}, {{ colors.bg_hl_source.default.blue }}, 0.90);
+@define-color fg       {{ colors.fg_source.default.hex }};
+@define-color comment  {{ colors.comment_source.default.hex }};  /* used for de-emphasised / inactive states */
+@define-color blue     {{ colors.blue_source.default.hex }};
+@define-color cyan     {{ colors.cyan_source.default.hex }};
+@define-color magenta  {{ colors.magenta_source.default.hex }};
+@define-color green    {{ colors.green_source.default.hex }};
+@define-color yellow   {{ colors.yellow_source.default.hex }};
+@define-color orange   {{ colors.orange_source.default.hex }};
+@define-color red      {{ colors.red_source.default.hex }};
+
+/* ── Global reset ───────────────────────────────────────────────────────────
+   Strip GTK's default widget chrome so pills are the only visual unit.
+   min-height: 0 prevents GTK from enforcing a taller minimum on children.   */
+* {
+  border: none;
+  border-radius: 0;
+  font-family: JetBrainsMono Nerd Font;
+  font-size: 13px;
+  min-height: 0;
+}
+
+/* The waybar window itself is transparent; each module draws its own pill. */
+window#waybar {
+  background: transparent;
+  color: @fg;
+  font-family: JetBrainsMono Nerd Font;
+}
+
+/* ── Shared pill base ───────────────────────────────────────────────────────
+   All status modules share this pill shape. border-radius: 50px is a safe
+   "large enough" value that produces a capsule for any reasonable height.
+   The transition smooths color changes on state changes (e.g. mute toggle).  */
+#clock,
+#window,
+#custom-battery-power,
+#pulseaudio,
+#backlight,
+#tray {
+  background-color: @bg;
+  border-radius: 50px;
+  padding: 4px 12px;
+  margin: 0 4px;
+  transition: background-color 150ms ease, color 150ms ease;
+}
+
+/* Clock is the leftmost pill; remove its left margin so it sits flush with
+   the bar edge after the bar's own margin-left handles the screen offset.   */
+#clock {
+  color: @blue;
+  font-weight: bold;
+  margin-left: 0;
+}
+
+#window {
+  color: {{ colors.fg_light_source.default.hex }};  /* slightly dimmer than @fg to visually subordinate title */
+  font-style: italic;
+}
+
+/* ── Workspaces ─────────────────────────────────────────────────────────────
+   Workspaces container is transparent; each button is its own pill so the
+   row reads as a sequence of individual indicators rather than one block.    */
+#workspaces {
+  background: transparent;
+  padding: 0;
+  margin: 0;
+}
+
+#workspaces button {
+  background-color: @bg;
+  color: @comment;      /* inactive workspaces use the subdued comment color */
+  border-radius: 50px;
+  padding: 4px 10px;
+  margin: 0 3px;
+  min-width: 0;         /* allow buttons to shrink to icon width */
+  transition: all 0.15s ease;
+}
+
+/* Active and focused are both set for Hyprland compatibility; Hyprland emits
+   "focused" on the active workspace button.                                  */
+#workspaces button.active,
+#workspaces button.focused {
+  background-color: @blue;
+  color: #ffffff;
+  font-weight: bold;
+}
+
+/* Hover uses a translucent tint instead of the full blue to avoid the button
+   looking active before it is clicked.                                       */
+#workspaces button:hover {
+  background-color: rgba({{ colors.blue_source.default.red }}, {{ colors.blue_source.default.green }}, {{ colors.blue_source.default.blue }}, 0.25);  /* @blue at 25% opacity */
+  color: @blue;
+}
+
+/* ── Right pills ────────────────────────────────────────────────────────────
+   battery-power CSS classes are emitted by the script via the "class" field
+   in its JSON output. Multiple classes can be active simultaneously (e.g.
+   "power-saver critical"), so profile color and critical alert compose.      */
+
+/* Default / fallback color while class is not yet resolved */
+#custom-battery-power {
+  color: @green;
+}
+
+#custom-battery-power.performance {
+  color: @orange;   /* warm to signal high-draw state */
+}
+
+#custom-battery-power.balanced {
+  color: @green;
+}
+
+#custom-battery-power.power-saver {
+  color: @cyan;     /* cool to signal conservative state */
+}
+
+/* Critical overrides background entirely to make low-battery state urgent.
+   Text uses the dark background color for legibility on the red fill.       */
+#custom-battery-power.critical {
+  background-color: @red;
+  color: {{ colors.bg_source.default.hex }};   /* Tokyo Night bg — ensures contrast on red background */
+}
+
+#pulseaudio {
+  color: @magenta;
+}
+
+/* Muted speaker uses comment gray to visually "disappear" like the sound did */
+#pulseaudio.muted {
+  color: @comment;
+}
+
+/* Microphone muted uses red to indicate an actively suppressed input */
+#pulseaudio.source-muted {
+  color: @red;
+}
+
+#backlight {
+  color: @yellow;
+}
+
+/* Tray reduces horizontal padding slightly; icons have their own internal
+   spacing set via config "spacing": 8, so less pill padding is needed.      */
+#tray {
+  padding: 4px 10px;
+}
