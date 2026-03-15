@@ -21,7 +21,12 @@ USER_HOME="/home/$USERNAME"
 log "Provisioning for user: $USERNAME (home: $USER_HOME)"
 
 DOTFILES_REPO="${DOTFILES_REPO:-https://github.com/0JEA/dotfiles.git}"
-BASE_URL="https://raw.githubusercontent.com/0JEA/dotfiles/main/install"
+# Derive raw GitHub content URL from DOTFILES_REPO so forks work automatically
+if [[ "$DOTFILES_REPO" =~ ^https://github\.com/([^/]+)/([^/]+?)(\.git)?$ ]]; then
+    BASE_URL="https://raw.githubusercontent.com/${BASH_REMATCH[1]}/${BASH_REMATCH[2]}/main/install"
+else
+    BASE_URL="https://raw.githubusercontent.com/0JEA/dotfiles/main/install"
+fi
 
 # ---------------------------------------------------------------------------
 # 1. Full system update
@@ -44,6 +49,22 @@ log "Installing pacman packages..."
 pacman -S --needed --noconfirm - < /tmp/pkglist-pacman.txt
 
 # ---------------------------------------------------------------------------
+# 3a. Set default shell to zsh
+# ---------------------------------------------------------------------------
+log "Setting default shell to zsh..."
+chsh -s /usr/bin/zsh "$USERNAME"
+
+# ---------------------------------------------------------------------------
+# 3b. Initialize MariaDB (if installed)
+# ---------------------------------------------------------------------------
+if pacman -Qq mariadb &>/dev/null; then
+    log "Initializing MariaDB..."
+    mariadb-install-db --user=mysql --basedir=/usr --datadir=/var/lib/mysql 2>/dev/null \
+        || log "  WARNING: mariadb-install-db failed (may already be initialized)"
+    systemctl enable mariadb
+fi
+
+# ---------------------------------------------------------------------------
 # 4. Configure zram
 # ---------------------------------------------------------------------------
 log "Configuring zram..."
@@ -62,6 +83,24 @@ systemctl enable sddm
 systemctl enable bluetooth
 systemctl enable cups
 systemctl enable NetworkManager
+systemctl enable power-profiles-daemon
+
+# snapper: create root config and enable timers
+if pacman -Qq snapper &>/dev/null; then
+    snapper -c root create-config / 2>/dev/null \
+        || log "  WARNING: snapper root config failed (may already exist)"
+    systemctl enable snapper-timeline.timer snapper-cleanup.timer
+fi
+
+# User services: enable pipewire + wireplumber via systemd user symlinks
+# (user session is not running yet, so we create the enable symlinks directly)
+log "Enabling user services (pipewire, wireplumber)..."
+USER_WANTS_DIR="$USER_HOME/.config/systemd/user/default.target.wants"
+sudo -u "$USERNAME" mkdir -p "$USER_WANTS_DIR"
+for svc in pipewire.service pipewire-pulse.service wireplumber.service; do
+    [[ -f "/usr/lib/systemd/user/$svc" ]] && \
+        sudo -u "$USERNAME" ln -sf "/usr/lib/systemd/user/$svc" "$USER_WANTS_DIR/$svc"
+done
 
 # ---------------------------------------------------------------------------
 # 6. Build and install yay (as user, not root)
@@ -140,8 +179,9 @@ fi
 # ---------------------------------------------------------------------------
 log "Installing npm global packages..."
 NPM_PKGS=$(tr '\n' ' ' < /tmp/pkglist-npm.txt)
+# Install as root → lands in /usr/local/lib/node_modules, on PATH for all users
 # shellcheck disable=SC2086
-sudo -u "$USERNAME" npm install -g $NPM_PKGS
+npm install -g $NPM_PKGS
 
 # ---------------------------------------------------------------------------
 # 13. Tmux Plugin Manager
@@ -153,6 +193,10 @@ if [[ ! -d "$TPM_DIR" ]]; then
 else
     log "  TPM already present, skipping"
 fi
+log "  Installing TPM plugins..."
+sudo -u "$USERNAME" TMUX_PLUGIN_MANAGER_PATH="$USER_HOME/.tmux/plugins" \
+    "$TPM_DIR/bin/install_plugins" 2>/dev/null \
+    || log "  WARNING: TPM plugin auto-install failed — run prefix+I manually in tmux"
 
 # ---------------------------------------------------------------------------
 # 14. tealdeer cache update
@@ -161,11 +205,27 @@ log "Updating tldr cache..."
 sudo -u "$USERNAME" tldr --update 2>/dev/null || log "  WARNING: tldr update failed (non-fatal)"
 
 # ---------------------------------------------------------------------------
+# 14a. Generate SSH key
+# ---------------------------------------------------------------------------
+log "Generating SSH key for $USERNAME..."
+if [[ ! -f "$USER_HOME/.ssh/id_ed25519" ]]; then
+    sudo -u "$USERNAME" mkdir -p "$USER_HOME/.ssh"
+    sudo -u "$USERNAME" chmod 700 "$USER_HOME/.ssh"
+    sudo -u "$USERNAME" ssh-keygen -t ed25519 -C "$USERNAME@$(hostname)" \
+        -N "" -f "$USER_HOME/.ssh/id_ed25519"
+    log "  SSH key generated. Add the public key to GitHub before your first push:"
+    log "  $(cat "$USER_HOME/.ssh/id_ed25519.pub")"
+else
+    log "  SSH key already exists, skipping"
+fi
+
+# ---------------------------------------------------------------------------
 # 15. Fix git remote to use SSH (not HTTPS)
 # ---------------------------------------------------------------------------
 log "Switching dotfiles remote to SSH..."
+SSH_REMOTE=$(echo "$DOTFILES_REPO" | sed 's|https://github\.com/|git@github.com:|; s|\.git$||').git
 sudo -u "$USERNAME" git -C "$USER_HOME/dotfiles" \
-    remote set-url origin git@github.com:0JEA/dotfiles.git 2>/dev/null || true
+    remote set-url origin "$SSH_REMOTE" 2>/dev/null || true
 
 # ---------------------------------------------------------------------------
 # Done

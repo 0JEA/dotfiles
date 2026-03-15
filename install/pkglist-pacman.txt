@@ -68,7 +68,6 @@ pipewire
 pipewire-alsa
 pipewire-jack
 pipewire-pulse
-polkit-kde-agent
 power-profiles-daemon
 pyright
 python-pynvim

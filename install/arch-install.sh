@@ -67,7 +67,7 @@ info "Pre-flight checks..."
 [[ -d /sys/firmware/efi/efivars ]] || die "Not booted in UEFI mode. Enable UEFI in BIOS."
 
 # Disk exists
-[[ -b "$DISK" ]] || die "Disk $DISK not found. Available disks:"; lsblk -d -o NAME,SIZE,MODEL 2>/dev/null || true
+[[ -b "$DISK" ]] || { lsblk -d -o NAME,SIZE,MODEL 2>/dev/null || true; die "Disk $DISK not found (see above)."; }
 
 # Network
 info "Checking network connectivity..."
@@ -118,12 +118,15 @@ else
     die "No EFI partition found on $DISK. Is this a GPT/UEFI disk with Windows?"
 fi
 
+# Snapshot highest existing partition number so we can identify the new one
+PREV_LAST=$(sgdisk -p "$DISK" 2>/dev/null | awk 'NR>2 {last=$1} END {print last+0}')
+
 # Create root partition using all unallocated space
 info "Creating btrfs root partition in unallocated space..."
 sgdisk --largest-new=0 --typecode=0:8300 --change-name=0:"Arch Linux" "$DISK"
 
-# Find the new partition (last one on the disk)
-ROOT_PART=$(sgdisk -p "$DISK" 2>/dev/null | awk 'NR>2 && /8300/ {last=$1} END {print last}')
+# Find the new partition by looking for one with a higher number than before
+ROOT_PART=$(sgdisk -p "$DISK" 2>/dev/null | awk -v prev="$PREV_LAST" 'NR>2 && $1 > prev {print $1; exit}')
 [[ -n "$ROOT_PART" ]] || die "Failed to find new root partition after sgdisk"
 
 if [[ "$DISK" =~ nvme|mmcblk ]]; then
@@ -170,8 +173,14 @@ lsblk "$DISK"
 # ---------------------------------------------------------------------------
 hr
 info "Running pacstrap (this will take a few minutes)..."
+if grep -q 'GenuineIntel' /proc/cpuinfo 2>/dev/null; then
+    UCODE_PKG="intel-ucode"
+else
+    UCODE_PKG="amd-ucode"
+fi
+info "CPU microcode package: $UCODE_PKG"
 pacstrap -K /mnt \
-    base linux linux-firmware amd-ucode \
+    base linux linux-firmware "$UCODE_PKG" \
     btrfs-progs grub efibootmgr os-prober \
     networkmanager sudo wget curl git \
     base-devel
@@ -234,8 +243,8 @@ passwd "$USERNAME"
 echo "%wheel ALL=(ALL:ALL) ALL" > /etc/sudoers.d/wheel
 chmod 440 /etc/sudoers.d/wheel
 
-# ---- mkinitcpio: add btrfs ----
-sed -i 's/^MODULES=()/MODULES=(btrfs)/' /etc/mkinitcpio.conf
+# ---- mkinitcpio: add btrfs (handles any existing MODULES content) ----
+sed -i '/^MODULES=/{/btrfs/!s/)/ btrfs)/}' /etc/mkinitcpio.conf
 mkinitcpio -P
 
 # ---- GRUB (dual-boot) ----
@@ -246,6 +255,8 @@ grep -q 'GRUB_DISABLE_OS_PROBER' /etc/default/grub \
     || echo 'GRUB_DISABLE_OS_PROBER=false' >> /etc/default/grub
 grub-install --target=x86_64-efi --efi-directory=/boot/efi --bootloader-id=Arch --recheck
 grub-mkconfig -o /boot/grub/grub.cfg
+grep -q 'Windows' /boot/grub/grub.cfg \
+    || echo "WARNING: No Windows entry in grub.cfg — os-prober may not have detected Windows inside chroot. After first boot run: grub-mkconfig -o /boot/grub/grub.cfg"
 
 # ---- Services ----
 systemctl enable NetworkManager
@@ -287,11 +298,12 @@ if [[ "$INSTALL_SCRIPT_SOURCE" == "github" ]]; then
     info "Creating post-install.sh downloader stub (will fetch from GitHub at firstboot)..."
     cat > "$POST_INSTALL_DEST" << STUB
 #!/usr/bin/env bash
-# Download real post-install.sh from GitHub and execute it
+# Download real post-install.sh from GitHub and execute it.
+# ARCH_USERNAME and DOTFILES_REPO are inherited from firstboot.service Environment= directives.
 set -euo pipefail
 wget -q "https://raw.githubusercontent.com/0JEA/dotfiles/main/install/post-install.sh" \
     -O /tmp/post-install-real.sh
-bash /tmp/post-install-real.sh
+exec bash /tmp/post-install-real.sh
 STUB
     arch-chroot /mnt chown "$USERNAME:$USERNAME" "/home/$USERNAME/post-install.sh"
     arch-chroot /mnt chmod 755 "/home/$USERNAME/post-install.sh"
