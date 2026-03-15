@@ -1,0 +1,5 @@
+libfprint-git
+matugen
+spotify
+vesktop
+where-is-my-sddm-theme-git
