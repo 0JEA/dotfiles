@@ -43,7 +43,7 @@
     // Left-click toggles between HH:MM and ISO date via format-alt.
     // The tooltip shows a full calendar month using Pango markup.
     "clock": {
-        "format":     "{:%H:%M}",
+        "format":     "{:%I:%M %p}",
         "format-alt": "{:%Y-%m-%d}",
         "tooltip-format": "<big>{:%Y %B}</big>\n<tt><small>{calendar}</small></tt>"
     },

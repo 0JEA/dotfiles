@@ -37,6 +37,7 @@ window#waybar {
    The transition smooths color changes on state changes (e.g. mute toggle).  */
 #clock,
 #window,
+#custom-vpn,
 #custom-battery-power,
 #pulseaudio,
 #backlight,
@@ -106,16 +107,12 @@ window#waybar {
   color: @green;
 }
 
-#custom-battery-power.performance {
-  color: @orange;   /* warm to signal high-draw state */
-}
-
-#custom-battery-power.balanced {
+#custom-battery-power.ac {
   color: @green;
 }
 
-#custom-battery-power.power-saver {
-  color: @cyan;     /* cool to signal conservative state */
+#custom-battery-power.battery {
+  color: @cyan;
 }
 
 /* Critical overrides background entirely to make low-battery state urgent.

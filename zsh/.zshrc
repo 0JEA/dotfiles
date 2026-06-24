@@ -39,3 +39,7 @@ HISTFILE=~/.zsh_history
 
 # Prompt initialization
 autoload -Uz compinit && compinit
+
+
+# Added by Antigravity CLI installer
+export PATH="/home/coke/.local/bin:$PATH"

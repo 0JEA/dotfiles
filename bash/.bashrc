@@ -37,3 +37,10 @@ if [[ -z "$TMUX" ]] && [[ "$TERM" != "linux" ]]; then
   exec tmux new-session
 fi
 export PATH="$HOME/.local/bin:$PATH"
+
+# SSH agent for GitHub deploy key
+if [ -z "$SSH_AUTH_SOCK" ]; then
+  eval $(ssh-agent -s) > /dev/null 2>&1
+fi
+if ! ssh-add -l 2>/dev/null | grep -q rosecityogs; then
+  SSH_ASKPASS=/home/coke/websites/.ssh_askpass.sh SSH_ASKPASS_REQUIRE=force DISPLAY=dummy ssh-add /home/coke/websites/rosecityogs_deploy_key < /dev/null 2>/dev/null
