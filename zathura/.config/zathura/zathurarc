@@ -1,0 +1,43 @@
+# zathura — warm paper reading mode.  Toggle with Ctrl-R.
+#
+# This does the TONE at the right layer: zathura recolors the rendered page
+# surface once per page render and caches it, so it costs nothing per frame
+# (unlike a compositor screen shader, which repays the cost on every damaged
+# frame while scrolling).
+
+set recolor true
+
+# recolor maps luminance (0.30R + 0.59G + 0.11B, in gamma-encoded sRGB) as:
+#     out = darkcolor + l * (lightcolor - darkcolor)
+# so lightcolor is what WHITE/background BECOMES, darkcolor is what INK becomes.
+# (Stock defaults are #000000/#FFFFFF, i.e. dark mode.)
+#
+# #FFF3DE is #ECE1CD with the max channel normalised to 1.0: same hue, but
+# -9.3% luminance instead of -23.9%. WCAG's +0.05 flare term does not scale, so
+# every dark-on-light ratio degrades as the page dims — this holds ~97% of them
+# (#767676: 4.61 -> 4.45) where #ECE1CD drops it to 4.27 and FAILS AA.
+set recolor-lightcolor "#FFF3DE"
+set recolor-darkcolor  "#000000"
+
+# MUST be false. With keephue=true the source takes a different branch where
+# (quoting render.c) "white and black go to GRAYS of same lightness as light and
+# dark colors" — a grey page, not a cream one. keephue cannot produce warm paper.
+set recolor-keephue false
+
+# Misnamed: this is the image-protection switch. The man page is accurate —
+# "Defines if original image colors should be kept while recoloring". Without it
+# every figure/photo is flattened onto the two-colour duotone ramp.
+# Caveat: exemption is by axis-aligned bbox, so rotated/masked figures get a
+# rectangular un-recoloured box. Vector charts are not images and still flatten.
+set recolor-reverse-video true
+
+# Leave OFF. adjust-lightness applies l -> l^4 on top of sRGB's ~2.2 gamma
+# (effective ~4.4) and drives designed mid-grey to near-black: #767676 would go
+# to 10.13:1 (223% of original), destroying the document's visual hierarchy.
+set recolor-adjust-lightness false
+
+# A sheet on a desk, not a page welded to the screen edge.
+set default-bg "#1a1b26"
+set page-padding 8
+set statusbar-basename true
+set selection-clipboard clipboard

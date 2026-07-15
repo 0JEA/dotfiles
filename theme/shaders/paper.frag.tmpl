@@ -276,7 +276,13 @@ void main() {
     // (`folds` adds a genuine vec2 and is exempt.)
     vec3 N = normalize(vec3(normal, U_RELIEF_Z));
     vec3 lightDir = normalize(vec3(1.0, 2.0, 1.0));
-    float shade = mix(0.90, 1.06, clamp(dot(N, lightDir), 0.0, 1.0));
+    // Re-centred so a FLAT normal yields exactly 1.0. dot((0,0,1), normalize(1,2,1))
+    // = 0.40825, so the old mix(0.90, 1.06, ..) evaluated to 0.9653 on flat paper —
+    // i.e. the page was 3.5% dark before any relief existed, and every dark-on-light
+    // contrast ratio paid for it. Same 0.16 span, zero extra ops (both constants),
+    // +6.7% page luminance (#767676: 3.26 -> 3.52).
+    // 0.925 * 1.0947 = 1.013 can clip R, but only on already-near-white highlights.
+    float shade = mix(0.9347, 1.0947, clamp(dot(N, lightDir), 0.0, 1.0));
 
     // ambient occlusion: creases sit in shadow
     float ao = 1.0 - U_AO * 0.12 * clamp(length(ridge) * 1.5, 0.0, 1.0);

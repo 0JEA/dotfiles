@@ -43,12 +43,20 @@ mkdir -p "$CACHE"
 
 CURRENT=$(hyprctl getoption decoration:screen_shader -j | jq -r '.str')
 
-if [[ "$CURRENT" == "$SHADER" ]]; then
+# Render first, so we can compare CONTENT rather than just the path. Comparing
+# paths alone means that after editing the template the cached file is stale but
+# the path still matches -- so the toggle would switch OFF instead of picking up
+# your edit, and you'd have to press the key twice with no clue why. Same if the
+# cache was cleared while the keyword still pointed at it.
+sed "s/__STRENGTH__/$STRENGTH/" "$TMPL" > "$SHADER.new"
+if [[ "$CURRENT" == "$SHADER" ]] && cmp -s "$SHADER.new" "$SHADER"; then
+    rm -f "$SHADER.new"
     hyprctl keyword decoration:screen_shader "[[EMPTY]]" >/dev/null
     note "Off"
 else
-    # always re-render: the template is the source of truth, and this is a sed
-    sed "s/__STRENGTH__/$STRENGTH/" "$TMPL" > "$SHADER"
+    mv -f "$SHADER.new" "$SHADER"
+    # re-apply even if the path is unchanged, so an edited template takes effect
+    hyprctl keyword decoration:screen_shader "[[EMPTY]]" >/dev/null
     hyprctl keyword decoration:screen_shader "$SHADER" >/dev/null
     note "On (${VARIANT})"
 fi
