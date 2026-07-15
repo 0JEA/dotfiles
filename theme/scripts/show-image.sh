@@ -36,10 +36,13 @@ esac
 
 find_socket() {
     local pid
-    # -x kitty: without it this also matches the `hyprctl dispatch exec "kitty
-    # --title ..."` launcher (same string in its cmdline, lower PID, sorts
+    # Anchor with ^: an unanchored match also catches the `hyprctl dispatch exec
+    # "kitty --title ..."` launcher (same string in its cmdline, lower PID, sorts
     # first), so find_socket would test /tmp/kitty-coke-<hyprctl-pid> and fail.
-    pid=$(pgrep -x kitty -f "kitty --title $WINDOW_TITLE" | head -1) || return 1
+    # The launcher's cmdline starts with hyprctl (or /bin/sh -c), so ^kitty
+    # excludes it. NOTE: `pgrep -x kitty -f PATTERN` is NOT the fix -- pgrep
+    # rejects that as two patterns ("only one pattern can be provided").
+    pid=$(pgrep -f "^kitty --title $WINDOW_TITLE" | head -1) || return 1
     [[ -n "$pid" ]] || return 1
     local sock="/tmp/kitty-coke-$pid"
     [[ -S "$sock" ]] || return 1
