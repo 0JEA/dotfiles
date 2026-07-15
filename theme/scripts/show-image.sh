@@ -36,7 +36,10 @@ esac
 
 find_socket() {
     local pid
-    pid=$(pgrep -f "kitty --title $WINDOW_TITLE" | head -1) || return 1
+    # -x kitty: without it this also matches the `hyprctl dispatch exec "kitty
+    # --title ..."` launcher (same string in its cmdline, lower PID, sorts
+    # first), so find_socket would test /tmp/kitty-coke-<hyprctl-pid> and fail.
+    pid=$(pgrep -x kitty -f "kitty --title $WINDOW_TITLE" | head -1) || return 1
     [[ -n "$pid" ]] || return 1
     local sock="/tmp/kitty-coke-$pid"
     [[ -S "$sock" ]] || return 1
@@ -66,10 +69,10 @@ printf -v IMG_Q '%q' "$IMG"
 kitty @ --to "unix:$SOCK" send-text "kitty +kitten icat --transfer-mode=stream -- $IMG_Q
 "
 
-ADDR=$(hyprctl clients -j | python3 -c "
-import json, sys
-d = json.load(sys.stdin)
-matches = [c['address'] for c in d if c['title'] == '$WINDOW_TITLE']
-print(matches[0] if matches else '')
-")
-[[ -n "$ADDR" ]] && hyprctl dispatch focuswindow "address:$ADDR" >/dev/null
+ADDR=$(hyprctl clients -j | jq -r --arg t "$WINDOW_TITLE" 'first(.[] | select(.title==$t) | .address) // ""')
+# `[[ ... ]] && cmd` as the LAST line would make an empty ADDR the script's exit
+# status -- reporting failure even though the image displayed fine.
+if [[ -n "$ADDR" ]]; then
+    hyprctl dispatch focuswindow "address:$ADDR" >/dev/null
+fi
+exit 0
