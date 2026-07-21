@@ -36,8 +36,30 @@ set recolor-reverse-video true
 # to 10.13:1 (223% of original), destroying the document's visual hierarchy.
 set recolor-adjust-lightness false
 
+# PAPER TEXTURE (patched zathura). Tuned by eye via theme/scripts/paper-zathura-hud.py.
+# All live-tunable: `:set <name> <v>` re-renders instantly, or run the HUD for sliders.
+# The fine tooth is NOT here -- it's baked into paper_tile.h (tune in paperlab, rebake).
+# Stock zathura ignores every line below.
+set recolor-paper 0.45
+set recolor-paper-depth 0.275
+set recolor-paper-depth-scale 14.5
+set recolor-paper-marks 0.28
+set recolor-paper-mark-density 0.15
+set recolor-paper-mark-scale 40
+set recolor-paper-pits 0.545
+set recolor-paper-pit-density 0.015
+set recolor-paper-pit-scale 9
+set recolor-paper-scratches 0.344
+set recolor-paper-scratch-density 0.036
+set recolor-paper-scratch-scale 11.94
+
 # A sheet on a desk, not a page welded to the screen edge.
 set default-bg "#1a1b26"
-set page-padding 8
+# NOT `page-padding` -- that setting does not exist in zathura (verified: zero
+# matches for "page-padding" in zathura's config.c; the only real names are the
+# two below). `set page-padding 8` parsed as an unknown option and was silently
+# ignored, so the gap between pages was the 1px default, not 8.
+set page-v-padding 8
+set page-h-padding 8
 set statusbar-basename true
 set selection-clipboard clipboard

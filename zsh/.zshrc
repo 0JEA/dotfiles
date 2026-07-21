@@ -47,3 +47,6 @@ autoload -Uz compinit && compinit
 
 # Added by Antigravity CLI installer
 export PATH="/home/coke/.local/bin:$PATH"
+
+# Local scripts (repo-health.sh etc.)
+export PATH="$HOME/bin:$PATH"

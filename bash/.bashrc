@@ -48,3 +48,13 @@ if [ -z "$SSH_AUTH_SOCK" ]; then
 fi
 if ! ssh-add -l 2>/dev/null | grep -q rosecityogs; then
   SSH_ASKPASS=/home/coke/websites/.ssh_askpass.sh SSH_ASKPASS_REQUIRE=force DISPLAY=dummy ssh-add /home/coke/websites/rosecityogs_deploy_key < /dev/null 2>/dev/null
+fi
+export SSH_ASKPASS=/home/coke/websites/.ssh_askpass.sh
+export SSH_ASKPASS_REQUIRE=force
+export DISPLAY=:0
+
+# Added by Antigravity CLI installer
+export PATH="/home/coke/.local/bin:$PATH"
+
+# Local scripts (repo-health.sh etc.)
+export PATH="$HOME/bin:$PATH"
