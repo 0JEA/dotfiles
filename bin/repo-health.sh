@@ -29,7 +29,7 @@ STAMP=$(date +%Y-%m-%d)
 # that is mostly noise gets ignored, which is the same failure as not running it. Prune
 # anything not authored here.
 EXCLUDES=( '*/node_modules/*' '*/attic/*' '*/.cache/*' '*/.deepseek/*' '*/.tmux/plugins/*'
-           '*/.local/share/*' '*/.npm/*' '*/go/pkg/*' '*/.vscode*/*' '*/.venv/*' )
+           '*/.local/share/*' '*/.npm/*' '*/go/pkg/*' '*/.vscode*/*' '*/.venv/*' '*/build/_deps/*' '*/src/zathura/*' )
 repos() {
   local args=(); for e in "${EXCLUDES[@]}"; do args+=( -not -path "$e" ); done
   find "$ROOT" -maxdepth 5 -name .git "${args[@]}" -printf '%h\n' 2>/dev/null | sort -u
