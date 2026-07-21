@@ -1,7 +1,11 @@
 # ~/.zshrc
 
+# Raise Claude Code's per-session web-search cap (default 200 was hit during long research runs)
+export CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION=100000
+
 # --- FUNCTIONS ---
-export GEMINI_API_KEY="AIzaSyD83Gg8FLpOkZgv5lXmh_9qqP7kJHzUSn0"
+# Secrets live in ~/.secrets/env (untracked, chmod 600) — never commit keys here
+[ -f "$HOME/.secrets/env" ] && . "$HOME/.secrets/env"
 gem() {
     local sys="You are a concise terminal assistant. The user is in a terminal. Keep answers short and direct. No filler, no affirmations, no unnecessary markdown. Use plain text by default — only use code blocks or lists when they genuinely help. Always answer the question directly — never respond with a shell command when the user asked a factual question."
     local res
