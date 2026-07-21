@@ -13,6 +13,24 @@ uniform sampler2D tex;
 
 #define TWO_PI 6.28318530718
 #define STRENGTH __STRENGTH__
+// Sparse-feature knobs, substituted at toggle time like STRENGTH.
+// SCRATCH_THRESH is the BASELINE scratch probability: 0.985 => only 1.5% of cells
+// carry one. The scratch grid is ~20x11 cells on a 1920x1080 screen, so 0.985 is
+// ~3 scratches on the WHOLE SCREEN — which is why the imperfections read as
+// missing. Lower it for more. (Measured: scratches are sd 0.04% but p2p 6.53% —
+// a 163x ratio. They are sparse, not weak.)
+#define SCRATCH_THRESH __SCRATCH_THRESH__
+#define SCRATCH_GAIN __SCRATCH_GAIN__
+#define FOLD_GAIN __FOLD_GAIN__
+#define FOLD_COUNT __FOLD_COUNT__
+// Per-layer gains, so the live HUD has something worth dragging. All default to
+// 1.0, which reproduces the original tuning exactly.
+#define ROUGH_GAIN __ROUGH_GAIN__
+#define FIBER_GAIN __FIBER_GAIN__
+#define AO_GAIN __AO_GAIN__
+#define FADE_AMT __FADE_AMT__
+#define RELIEF_Z_VAL __RELIEF_Z_VAL__
+#define SEED_VAL __SEED_VAL__
 
 // ---------------------------------------------------------------------------
 // PCG2D integer hash — Jarzynski & Olano, JCGT 9(3) 2020.
@@ -165,7 +183,7 @@ void folds2(vec2 uvA, vec2 uvB, float count, float seed, out vec2 wA, out vec2 w
 float scratches(vec2 p, float wear) {
     vec2 cell = floor(p);
     // wear raises local scratch probability — Substance's curvature-driven wear
-    float thresh = mix(0.985, 0.90, clamp(wear, 0.0, 1.0));
+    float thresh = mix(SCRATCH_THRESH, SCRATCH_THRESH - 0.085, clamp(wear, 0.0, 1.0));
     float exists = step(thresh, hash21(cell * 5.0 + 31.0));
     // 90-98.5% of cells have no scratch and `exists` multiplies the whole
     // result, so the 6 hashes + cos/sin below were pure waste. A scratch cell is
@@ -190,15 +208,15 @@ float scratches(vec2 p, float wear) {
 }
 
 // --- tuning (scaled by STRENGTH) -------------------------------------------
-const float U_ROUGHNESS = 0.50 * STRENGTH;
-const float U_FIBER     = 0.28 * STRENGTH;
-const float U_FOLDS     = 0.35 * STRENGTH;
-const float U_SCRATCH   = 0.30 * STRENGTH;
-const float U_AO        = 0.35 * STRENGTH;
-const float U_FOLDCOUNT = 7.0;
-const float U_SEED      = 3.0;
-const float U_FADE      = 0.70;  // input to the 8*x^3 curve; must stay unsaturated
-const float U_RELIEF_Z  = 1.8;   // NOT strength-scaled; STRENGTH drives amplitude
+const float U_ROUGHNESS = 0.50 * STRENGTH * ROUGH_GAIN;
+const float U_FIBER     = 0.28 * STRENGTH * FIBER_GAIN;
+const float U_FOLDS     = 0.35 * STRENGTH * FOLD_GAIN;
+const float U_SCRATCH   = 0.30 * STRENGTH * SCRATCH_GAIN;
+const float U_AO        = 0.35 * STRENGTH * AO_GAIN;
+const float U_FOLDCOUNT = FOLD_COUNT;
+const float U_SEED      = SEED_VAL;
+const float U_FADE      = FADE_AMT;  // input to the 8*x^3 curve; must stay unsaturated
+const float U_RELIEF_Z  = RELIEF_Z_VAL;  // NOT strength-scaled; STRENGTH drives amplitude
 const float U_GATE_LO   = 0.55;
 const float U_GATE_HI   = 0.85;
 
