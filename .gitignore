@@ -1,7 +1,12 @@
-# Ignore large data and cache directories
+# App PROFILES (chromium/discord/obsidian) are no longer symlinked in here —
+# they live at their real ~/.config/<app> paths as of 2026-07-21. Only config
+# files belong in this repo; profile data does not. Keep these ignores as a
+# guard in case an app ever recreates the path.
 chromium/
 discord/
 obsidian/
+
+# Ignore large data and cache directories
 **/Cache/
 **/Code Cache/
 **/GPUCache/
