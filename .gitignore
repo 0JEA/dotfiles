@@ -38,3 +38,6 @@ obsidian/
 **/DawnGraphiteCache/
 **/DawnWebGPUCache/
 **/segmentation_platform/
+
+# gh account/token state — never publish (a gho_ token leaked here in 6f12ce1)
+gh/.config/gh/hosts.yml
