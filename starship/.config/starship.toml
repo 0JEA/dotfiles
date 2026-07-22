@@ -2,6 +2,10 @@
 # STARSHIP CONFIGURATION (TOKYO NIGHT / CONNECTED PILLS)
 # ==============================================================================
 
+# Directory-scan budget. Default is 30ms, which $HOME (400+ entries) exceeds on a
+# cold btrfs metadata cache -> "Scanning current directory timed out" on first terminal.
+scan_timeout = 500
+
 # Use a clean, one-line format
 format = """
 ${custom.path}\
