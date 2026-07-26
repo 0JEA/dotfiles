@@ -64,13 +64,19 @@ while read -r d; do
       # origin loses nothing, and reporting that as UNBACKED is a false positive that
       # trains you to ignore the report. Only tags confirmed present on origin count;
       # a purely local tag protects nothing.
-      remote_tags=$(git -C "$d" ls-remote --tags origin 2>/dev/null \
-                    | awk '$2 !~ /\^\{\}$/ {print $2}')
-      if [ -n "$remote_tags" ]; then
-        unbacked=$(git -C "$d" rev-list --count --branches --not --remotes $remote_tags 2>/dev/null)
-      else
-        unbacked=$(git -C "$d" rev-list --count --branches --not --remotes 2>/dev/null)
-      fi
+      # Use the remote tags' SHAs, not their ref NAMES: a tag can exist on origin without
+      # ever having been fetched, and passing such a name to rev-list aborts the whole
+      # command ("unknown revision"), yielding an empty count that reads as UNBACKED.
+      # Keep only SHAs whose objects are present locally — those are the ones rev-list
+      # can resolve, and they are exactly the commits that are both known here and on origin.
+      remote_tag_shas=""
+      for sha in $(git -C "$d" ls-remote --tags origin 2>/dev/null | awk '{print $1}' | sort -u); do
+        git -C "$d" cat-file -e "${sha}^{commit}" 2>/dev/null && remote_tag_shas="$remote_tag_shas $sha"
+      done
+      unbacked=$(git -C "$d" rev-list --count --branches --not --remotes $remote_tag_shas 2>/dev/null)
+      # Fail safe: an empty result means the query itself broke. Report the branch-only
+      # number rather than a blank cell, which would silently read as a problem.
+      [ -z "$unbacked" ] && unbacked=$(git -C "$d" rev-list --count --branches --not --remotes 2>/dev/null)
       [ "${unbacked:-0}" != "0" ] && problems=$((problems+1))
     fi
   fi
