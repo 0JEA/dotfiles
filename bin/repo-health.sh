@@ -58,7 +58,19 @@ while read -r d; do
     if ! git -C "$d" config --get-all remote.origin.fetch 2>/dev/null | grep -q 'refs/heads/\*'; then
       unbacked="REFSPEC NARROWED"; problems=$((problems+1))
     else
-      unbacked=$(git -C "$d" rev-list --count --branches --not --remotes 2>/dev/null)
+      # Count a commit as BACKED if it is reachable from any ref that exists on the
+      # remote — remote-tracking branches OR tags that have been pushed. An archive
+      # tag is a real backup: deleting a superseded branch after tagging its tip on
+      # origin loses nothing, and reporting that as UNBACKED is a false positive that
+      # trains you to ignore the report. Only tags confirmed present on origin count;
+      # a purely local tag protects nothing.
+      remote_tags=$(git -C "$d" ls-remote --tags origin 2>/dev/null \
+                    | awk '$2 !~ /\^\{\}$/ {print $2}')
+      if [ -n "$remote_tags" ]; then
+        unbacked=$(git -C "$d" rev-list --count --branches --not --remotes $remote_tags 2>/dev/null)
+      else
+        unbacked=$(git -C "$d" rev-list --count --branches --not --remotes 2>/dev/null)
+      fi
       [ "${unbacked:-0}" != "0" ] && problems=$((problems+1))
     fi
   fi
