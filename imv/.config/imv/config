@@ -1,0 +1,48 @@
+# ==============================================================================
+# IMV CONFIGURATION
+# ==============================================================================
+# Wayland-native image viewer. Tokyo Night themed to match the rest of the
+# desktop (kitty, waybar, hyprlock, etc).
+# ==============================================================================
+
+[options]
+# Fill the background with the Tokyo Night bg color instead of a checkerboard
+background = 1a1b26
+overlay = false
+
+# Start in a sane scaling mode: shrink to fit, but don't blow up small images
+scaling_mode = shrink
+
+# Loop back to the first image after the last (nice for slideshows/dirs)
+loop_input = true
+
+# Slideshow default duration, in seconds (only used if slideshow started)
+slideshow_duration = 5
+
+# --- KEY BINDINGS (vim-style navigation) ---
+[binds]
+q = quit
+<Left> = prev
+<Right> = next
+h = prev
+l = next
+j = pan 0 -50
+k = pan 0 50
+<space> = next
+<backspace> = prev
+
++ = zoom 1
+- = zoom -1
+r = zoom 0
+f = fullscreen
+
+<Shift+R> = flip vertical
+<Shift+H> = flip horizontal
+
+gg = goto 1
+<Shift+G> = goto -1
+
+x = close
+<Shift+X> = exec rm "$imv_current_file"
+
+i = overlay

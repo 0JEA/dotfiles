@@ -1,0 +1,65 @@
+# zathura — warm paper reading mode.  Toggle with Ctrl-R.
+#
+# This does the TONE at the right layer: zathura recolors the rendered page
+# surface once per page render and caches it, so it costs nothing per frame
+# (unlike a compositor screen shader, which repays the cost on every damaged
+# frame while scrolling).
+
+set recolor true
+
+# recolor maps luminance (0.30R + 0.59G + 0.11B, in gamma-encoded sRGB) as:
+#     out = darkcolor + l * (lightcolor - darkcolor)
+# so lightcolor is what WHITE/background BECOMES, darkcolor is what INK becomes.
+# (Stock defaults are #000000/#FFFFFF, i.e. dark mode.)
+#
+# #FFF3DE is #ECE1CD with the max channel normalised to 1.0: same hue, but
+# -9.3% luminance instead of -23.9%. WCAG's +0.05 flare term does not scale, so
+# every dark-on-light ratio degrades as the page dims — this holds ~97% of them
+# (#767676: 4.61 -> 4.45) where #ECE1CD drops it to 4.27 and FAILS AA.
+set recolor-lightcolor "#FFF3DE"
+set recolor-darkcolor  "#000000"
+
+# MUST be false. With keephue=true the source takes a different branch where
+# (quoting render.c) "white and black go to GRAYS of same lightness as light and
+# dark colors" — a grey page, not a cream one. keephue cannot produce warm paper.
+set recolor-keephue false
+
+# Misnamed: this is the image-protection switch. The man page is accurate —
+# "Defines if original image colors should be kept while recoloring". Without it
+# every figure/photo is flattened onto the two-colour duotone ramp.
+# Caveat: exemption is by axis-aligned bbox, so rotated/masked figures get a
+# rectangular un-recoloured box. Vector charts are not images and still flatten.
+set recolor-reverse-video true
+
+# Leave OFF. adjust-lightness applies l -> l^4 on top of sRGB's ~2.2 gamma
+# (effective ~4.4) and drives designed mid-grey to near-black: #767676 would go
+# to 10.13:1 (223% of original), destroying the document's visual hierarchy.
+set recolor-adjust-lightness false
+
+# PAPER TEXTURE (patched zathura). Tuned by eye via theme/scripts/paper-zathura-hud.py.
+# All live-tunable: `:set <name> <v>` re-renders instantly, or run the HUD for sliders.
+# The fine tooth is NOT here -- it's baked into paper_tile.h (tune in paperlab, rebake).
+# Stock zathura ignores every line below.
+set recolor-paper 0.45
+set recolor-paper-depth 0.275
+set recolor-paper-depth-scale 14.5
+set recolor-paper-marks 0.28
+set recolor-paper-mark-density 0.15
+set recolor-paper-mark-scale 40
+set recolor-paper-pits 0.545
+set recolor-paper-pit-density 0.015
+set recolor-paper-pit-scale 9
+set recolor-paper-scratches 0.344
+set recolor-paper-scratch-density 0.036
+set recolor-paper-scratch-scale 11.94
+
+# A sheet on a desk, not a page welded to the screen edge.
+set default-bg "#1a1b26"
+# NOT `page-padding` -- that setting does not exist in zathura (verified: zero
+# matches for "page-padding" in zathura's config.c; the only real names are the
+# two below). `set page-padding 8` parsed as an unknown option and was silently
+# ignored, so the gap between pages was the 1px default, not 8.
+set page-v-padding 8
+set page-h-padding 8
+set statusbar-basename true
+set selection-clipboard clipboard

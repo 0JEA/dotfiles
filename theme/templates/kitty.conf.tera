@@ -12,6 +12,16 @@ window_padding_width 4
 hide_window_decorations yes
 confirm_os_window_close 0
 
+## --- REMOTE CONTROL (lets external tools/scripts drive kitty, e.g. spawning
+## windows and displaying images without needing their own controlling tty) ---
+## MUST stay in sync with kitty/.config/kitty/kitty.conf. matugen renders this
+## template over ~/.config/kitty/kitty.conf, and ~/.config/kitty is a SYMLINK
+## into this repo — so apply-theme.sh writes straight through to the tracked
+## file. Omitting these lines here silently deletes them from the repo on the
+## next re-theme and breaks theme/scripts/show-image.sh.
+allow_remote_control socket-only
+listen_on unix:/tmp/kitty-coke
+
 ## --- COLORS (Tokyo Night) ---
 background {{ colors.bg_source.default.hex }}
 foreground {{ colors.fg_source.default.hex }}
