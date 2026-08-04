@@ -1,0 +1,27 @@
+/* ── Caps lock indicator bar ─────────────────────────────────────────────────
+   GTK3 CSS (used by waybar) does not support transform. Instead we animate
+   margin-top from -3px (above the 3px bar, clipped by compositor) to 0 for
+   the "slide down" effect, with background-color fading in simultaneously.   */
+
+* {
+  border:        none;
+  border-radius: 0;
+  min-height:    0;
+}
+
+window#waybar {
+  background: transparent;
+}
+
+#custom-capslock {
+  min-height:       3px;
+  margin-top:       -3px;
+  background-color: transparent;
+  transition:       margin-top 300ms cubic-bezier(0.4, 0, 0.2, 1),
+                    background-color 250ms ease;
+}
+
+#custom-capslock.caps-active {
+  margin-top:       0;
+  background-color: #f7768e;  /* Tokyo Night red */
+}
