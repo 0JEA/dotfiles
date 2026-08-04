@@ -33,3 +33,7 @@ obsidian/
 **/DawnGraphiteCache/
 **/DawnWebGPUCache/
 **/segmentation_platform/
+
+# machine-local GitHub auth state. Held a gho_ token in commit 6f12ce1;
+# never version it again. Rotate that token: history cannot be un-leaked.
+gh/.config/gh/hosts.yml
