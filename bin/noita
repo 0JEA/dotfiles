@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# Launch the DRM-free (GOG) Noita under Proton via umu-launcher.
+#
+# Why each piece:
+#   GAMEID=umu-881100  Noita's Steam appid, used ONLY to pick protonfixes. umu currently
+#                      has no Noita-specific fix (verified 2026-07-26) — it needs none.
+#   (no gamemoderun)   REMOVED 2026-07-27. Its LD_PRELOAD propagates into the steamrt4
+#                      container, which has no libgamemode.so, so every child process
+#                      spammed "gamemodeauto: dlopen failed" and gamemode never actually
+#                      registered (`gamemoded -s` → "gamemode is inactive"). It bought
+#                      nothing anyway: auto-cpufreq already sets governor=performance and
+#                      flips turbo on within ~5s of load (measured 3.34 GHz). Verified.
+#   MANGOHUD=1         Set as an env var, NOT the `mangohud` wrapper: the game runs inside
+#                      the Steam runtime container, where the wrapper's LD_PRELOAD does
+#                      not survive. The env var does.
+#
+# Noita is a 32-bit (PE32/i386) binary, so it loads the lib32-* Vulkan/mesa stack.
+#
+# Usage: noita            # play
+#        noita --dev      # launch noita_dev.exe instead
+set -euo pipefail
+
+GAME_DIR="$HOME/Games/noita/prefix/drive_c/Games/Noita"
+EXE_NAME="noita.exe"
+
+if [[ "${1:-}" == "--dev" ]]; then
+    EXE_NAME="noita_dev.exe"
+    shift
+fi
+
+[[ -f "$GAME_DIR/$EXE_NAME" ]] || { echo "error: not found: $GAME_DIR/$EXE_NAME" >&2; exit 1; }
+
+# CRITICAL: Noita resolves data/ relative to the WORKING DIRECTORY, not the exe path.
+# Launching it by absolute path from elsewhere makes it exit instantly and SILENTLY —
+# no error, no crash log. Must cd in first and invoke it relatively. (Diagnosed 2026-07-27.)
+cd "$GAME_DIR"
+
+export WINEPREFIX="$HOME/Games/noita/prefix"
+export GAMEID="umu-881100"
+export PROTONPATH="GE-Proton"
+export WINEDEBUG="-all"
+export MANGOHUD=1
+
+mkdir -p "$HOME/Games/noita/logs"
+
+# Warn rather than silently underperform — this is the single biggest perf factor.
+if [[ "$(cat /sys/class/power_supply/AC0/online 2>/dev/null)" != "1" ]]; then
+    echo "WARNING: on battery — CPU boost is disabled (2.1 GHz vs 3.7 GHz). Plug in." >&2
+fi
+
+exec umu-run "./$EXE_NAME" "$@"
