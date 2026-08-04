@@ -47,3 +47,12 @@ export PATH="$HOME/bin:$PATH"
 
 # ssh-agent (systemd user socket)
 export SSH_AUTH_SOCK="$XDG_RUNTIME_DIR/ssh-agent.socket"
+
+# Raise Claude Code's per-session web-search cap (default 200 was hit during long research runs)
+export CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION=100000
+
+# Secrets live in ~/.secrets/env (untracked, chmod 600) — never commit keys here
+[ -f "$HOME/.secrets/env" ] && . "$HOME/.secrets/env"
+
+# ~/.local/bin (adopted from the laptop, which hardcoded /home/coke/.local/bin)
+export PATH="$HOME/.local/bin:$PATH"
