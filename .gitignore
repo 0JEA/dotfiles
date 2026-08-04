@@ -48,6 +48,7 @@ gh/.config/gh/hosts.yml
 claude/.claude/settings.json
 claude/.claude/settings.local.json
 
-# machine-local GitHub auth state. Held a gho_ token in commit 6f12ce1;
-# never version it again. Rotate that token: history cannot be un-leaked.
+# machine-local GitHub auth state. Held a gho_ token in commit 6f12ce1.
+# That token was ROTATED 2026-08-03, so the historical copy is now inert.
+# Keep this ignored anyway: the file holds live auth and must never be versioned.
 gh/.config/gh/hosts.yml
