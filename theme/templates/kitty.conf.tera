@@ -20,7 +20,7 @@ confirm_os_window_close 0
 ## file. Omitting these lines here silently deletes them from the repo on the
 ## next re-theme and breaks theme/scripts/show-image.sh.
 allow_remote_control socket-only
-listen_on unix:/tmp/kitty-coke
+listen_on unix:/tmp/kitty
 
 ## --- COLORS (Tokyo Night) ---
 background {{ colors.bg_source.default.hex }}

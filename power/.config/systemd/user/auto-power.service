@@ -1,0 +1,6 @@
+[Unit]
+Description=Auto power profile switcher
+
+[Service]
+Type=oneshot
+ExecStart=%h/dotfiles/power/scripts/auto-power.sh

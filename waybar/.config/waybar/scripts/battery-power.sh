@@ -12,43 +12,18 @@ BATTERY_PATH=$(find /sys/class/power_supply -maxdepth 1 -name 'BAT*' | sort | he
 
 # ── Toggle mode ──────────────────────────────────────────────────────
 if [[ "${1:-}" == "--toggle" ]]; then
-    CURRENT=$(powerprofilesctl get)
-
-    # Parse only the three profiles relevant to the cycle; the grep anchors on
-    # leading whitespace to avoid matching lines that contain these words as
-    # part of a longer string (e.g. driver names in verbose output).
-    AVAILABLE=$(powerprofilesctl list | grep -E '^\s+(performance|balanced|power-saver):' \
-        | awk '{gsub(/:$/,"",$1); print $1}')
-
-    # Desired cycle order — not all systems expose all three profiles, so
-    # FILTERED holds only those actually available on this machine.
-    CYCLE=("performance" "balanced" "power-saver")
-    FILTERED=()
-    for p in "${CYCLE[@]}"; do
-        # grep -q "^${p}$" matches the full line to avoid partial matches
-        # (e.g. "power-saver" matching a hypothetical "ultra-power-saver").
-        if echo "$AVAILABLE" | grep -q "^${p}$"; then
-            FILTERED+=("$p")
-        fi
-    done
-
-    # Nothing to cycle — powerprofilesctl may not be running or all profiles
-    # are missing. Exit without error so waybar silently skips the click.
-    [[ ${#FILTERED[@]} -eq 0 ]] && exit 1
-
-    # Default to the first profile in case CURRENT is not in FILTERED (e.g.
-    # the active profile is an unlisted vendor-specific mode).
-    NEXT="${FILTERED[0]}"
-    for i in "${!FILTERED[@]}"; do
-        if [[ "${FILTERED[$i]}" == "$CURRENT" ]]; then
-            # Wrap-around modulo advances to the next profile and loops back
-            # from the last entry to the first.
-            NEXT_IDX=$(( (i + 1) % ${#FILTERED[@]} ))
-            NEXT="${FILTERED[$NEXT_IDX]}"
+    CURRENT=$(cat /run/current-power-profile 2>/dev/null || echo "battery")
+    CYCLE=("ac" "battery" "critical")
+    NEXT="${CYCLE[0]}"
+    for i in "${!CYCLE[@]}"; do
+        if [[ "${CYCLE[$i]}" == "$CURRENT" ]]; then
+            NEXT_IDX=$(( (i + 1) % ${#CYCLE[@]} ))
+            NEXT="${CYCLE[$NEXT_IDX]}"
             break
         fi
     done
-    powerprofilesctl set "$NEXT"
+    touch /run/user/1000/power-override.lock
+    sudo /home/coke/dotfiles/power/scripts/set-profile.sh "$NEXT"
     exit 0
 fi
 
@@ -57,7 +32,7 @@ fi
 # capacity file (e.g. newline artifacts); falls back to 0 on read failure.
 CAPACITY=$(cat "${BATTERY_PATH}/capacity" 2>/dev/null | grep -E '^[0-9]+$' || echo "0")
 STATUS=$(cat "${BATTERY_PATH}/status" 2>/dev/null || echo "Unknown")
-PROFILE=$(powerprofilesctl get 2>/dev/null || echo "balanced")
+PROFILE=$(cat /run/current-power-profile 2>/dev/null || echo "battery")
 
 # ── Battery icon (based on charge level) ────────────────────────────
 # Nerd Font battery glyphs come in two parallel sets: one for discharging
@@ -84,17 +59,13 @@ fi
 
 # ── Power profile icon ───────────────────────────────────────────────
 case "$PROFILE" in
-    performance) PROFILE_ICON="󱐋" ;;
-    balanced)    PROFILE_ICON="󰾅" ;;
-    power-saver) PROFILE_ICON="󰾆" ;;
-    *)           PROFILE_ICON="󰾅" ;;  # unknown profile falls back to balanced glyph
+    ac)       PROFILE_ICON="󱐋" ;;
+    battery)  PROFILE_ICON="󰾆" ;;
+    critical) PROFILE_ICON="󱃍" ;;
+    *)        PROFILE_ICON="󰾆" ;;
 esac
 
 # ── CSS classes ──────────────────────────────────────────────────────
-# Start with the profile name as the primary class (matches .performance,
-# .balanced, .power-saver rules in style.css). Append "critical" as a
-# second class when battery is low and not actively charging so that both
-# the profile color and the critical background override can compose.
 CSS_CLASS="$PROFILE"
 if [[ "$CAPACITY" -le 15 && "$STATUS" != "Charging" ]]; then
     CSS_CLASS="${CSS_CLASS} critical"
