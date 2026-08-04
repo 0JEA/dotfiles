@@ -16,20 +16,19 @@ max_height = 1000
 edit = [
 	{ run = 'nvim "$@"', block = true, desc = "Edit" },
 ]
+pdf = [
+	{ run = 'zathura "$@"', orphan = true, desc = "Open PDF" },
+]
+image = [
+	{ run = 'feh "$@"', orphan = true, desc = "Open Image" },
+]
 
 [open]
 rules = [
-	{ name = "*/", use = [ "edit", "open", "reveal" ] },
+	{ mime = "inode/directory", use = [ "edit", "open", "reveal" ] },
 	{ mime = "text/*", use = [ "edit", "open", "reveal" ] },
 	{ mime = "application/json", use = [ "edit", "open", "reveal" ] },
 	{ mime = "application/javascript", use = [ "edit", "open", "reveal" ] },
-	{ name = "*.asm", use = [ "edit", "open", "reveal" ] },
-	{ name = "*.s", use = [ "edit", "open", "reveal" ] },
-	{ name = "*.css", use = [ "edit", "open", "reveal" ] },
-	{ name = "*.html", use = [ "edit", "open", "reveal" ] },
-	{ name = "*.lua", use = [ "edit", "open", "reveal" ] },
-	{ name = "*.py", use = [ "edit", "open", "reveal" ] },
-	{ name = "*.cpp", use = [ "edit", "open", "reveal" ] },
-	{ name = "*.c", use = [ "edit", "open", "reveal" ] },
-	{ name = "*.h", use = [ "edit", "open", "reveal" ] },
+	{ mime = "application/pdf", use = [ "pdf" ] },
+	{ mime = "image/*", use = [ "image" ] },
 ]

@@ -49,6 +49,12 @@ return {
     },
   },
 
+  -- Disable gitsigns (git gutter indicators)
+  { "lewis6991/gitsigns.nvim", enabled = false },
+
+  -- Disable flash.nvim (jump motion labels)
+  { "folke/flash.nvim", enabled = false },
+
   -- Custom treesitter configuration for requested languages
   {
     "nvim-treesitter/nvim-treesitter",
@@ -64,6 +70,7 @@ return {
         "json",
         "lua",
         "python",
+        "sql",
         "typescript",
         "vim",
         "yaml",

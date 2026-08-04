@@ -17,15 +17,16 @@ when = "true"
 format = "$output"
 shell = ["bash"]
 
-# --- GIT SEGMENT ---
+# --- GIT PILL ---
 [git_branch]
-symbol = "\uE702"
-style = "bg:#73daca fg:#1a1b26 bold"
-format = " [\uE0B6](#73daca)[$symbol $branch]($style)"
+symbol = ""
+style = "bg:#bb9af7 fg:#1a1b26 bold"
+# Git is optional, so we'll keep it as a standalone pill for safety.
+format = "[](#bb9af7)[$symbol $branch]($style)"
 
 [git_status]
-style = "bg:#73daca fg:#1a1b26 bold"
-format = "[$all_status$ahead_behind]($style)[\uE0B4](fg:#73daca) "
+style = "bg:#bb9af7 fg:#1a1b26 bold"
+format = "[$all_status$ahead_behind]($style)[](#bb9af7) "
 
 # --- PROMPT SYMBOL ---
 [character]
