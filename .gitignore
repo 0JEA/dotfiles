@@ -41,3 +41,9 @@ obsidian/
 
 # gh account/token state — never publish (a gho_ token leaked here in 6f12ce1)
 gh/.config/gh/hosts.yml
+
+# NEVER track Claude settings.json — it accumulates permission allow-rules verbatim, and on
+# 2026-08-03 one of them contained a plaintext sudo password (`printf <password>`), which was
+# pushed to this PUBLIC repo. Allow-rules are machine-local and can capture anything typed.
+claude/.claude/settings.json
+claude/.claude/settings.local.json
