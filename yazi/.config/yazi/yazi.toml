@@ -20,15 +20,19 @@ pdf = [
 	{ run = 'zathura "$@"', orphan = true, desc = "Open PDF" },
 ]
 image = [
-	{ run = 'feh "$@"', orphan = true, desc = "Open Image" },
+	{ run = 'feh "$@"', orphan = true, desc = "View image" },
 ]
 
 [open]
 rules = [
+	# Order matters: yazi takes the FIRST match, so the catch-all must be LAST.
+	# The laptop's version had { mime = "*/*" } third, which made every rule after
+	# it dead. This machine's version had no catch-all at all.
 	{ mime = "inode/directory", use = [ "edit", "open", "reveal" ] },
+	{ mime = "application/pdf", use = [ "pdf" ] },
+	{ mime = "image/*", use = [ "image" ] },
 	{ mime = "text/*", use = [ "edit", "open", "reveal" ] },
 	{ mime = "application/json", use = [ "edit", "open", "reveal" ] },
 	{ mime = "application/javascript", use = [ "edit", "open", "reveal" ] },
-	{ mime = "application/pdf", use = [ "pdf" ] },
-	{ mime = "image/*", use = [ "image" ] },
+	{ mime = "*/*", use = [ "edit", "open", "reveal" ] },
 ]

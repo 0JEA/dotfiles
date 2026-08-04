@@ -32,6 +32,12 @@ return {
     "saghen/blink.cmp",
     opts = {
       snippets = { preset = "luasnip" },
+      keymap = {
+        preset = "default",
+        ["<Tab>"] = { "snippet_forward", "fallback" },
+        ["<S-Tab>"] = { "snippet_backward", "fallback" },
+        ["<CR>"] = { "accept", "fallback" },
+      },
     },
   },
 
@@ -45,6 +51,16 @@ return {
           hide_dotfiles = false,
           hide_gitignored = false,
         },
+      },
+    },
+  },
+
+  -- Disable markdownlint — too noisy, keep rendering/LSP without linting errors
+  {
+    "mfussenegger/nvim-lint",
+    opts = {
+      linters_by_ft = {
+        markdown = {},
       },
     },
   },
