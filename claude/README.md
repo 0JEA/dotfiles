@@ -4,15 +4,21 @@ Deploy by symlinking into place (the dotfiles convention — each dir mirrors th
 
 ```bash
 mkdir -p ~/.claude/agents
-ln -sf ~/dotfiles/claude/.claude/settings.json ~/.claude/settings.json
-ln -sf ~/dotfiles/claude/.claude/agents/*.md   ~/.claude/agents/
+cp  ~/dotfiles/claude/settings.template.json ~/.claude/settings.json   # COPY, do not symlink
+ln -sf ~/dotfiles/claude/.claude/agents/*.md ~/.claude/agents/
 ```
 
+**Copy, never symlink `settings.json`.** Claude Code rewrites it every time you approve a
+permission, so a symlink would write your live allow-rules — and therefore anything typed into
+them — straight back into this repo. That is exactly how a plaintext sudo password reached a
+public repo on 2026-08-03. Refresh the template deliberately with `bash claude/sync-settings.sh`,
+which strips `permissions` and refuses to write if the result still looks secret-bearing.
+
 **What is here**
-- `settings.json` — permissions, model, and `enabledPlugins`. Claude Code re-downloads every
-  plugin listed there from the `claude-plugins-official` marketplace on first run, so the plugin
-  skills (superpowers, stripe, feature-dev, frontend-design, playwright, firebase, context7,
-  claude-md-management, the LSPs, security-guidance) do NOT need copying.
+- `settings.template.json` — model, effort, UI prefs, and `enabledPlugins` (all 11 plugins), with
+  `permissions` REMOVED. Copy it into place and Claude Code re-downloads every plugin listed.
+- `PLUGINS.md` — the same plugin list in readable form, with what each one provides.
+- `sync-settings.sh` — regenerates the template safely.
 - `agents/` — the three CUSTOM agents. These exist nowhere else and are not downloadable:
   `alberta-lawyer`, `doc-writer`, `graphics-engineering-tutor`.
 
