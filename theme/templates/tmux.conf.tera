@@ -6,10 +6,14 @@
 # ==============================================================================
 
 # --- TERMINAL & COLOR SETTINGS ---
-# Use screen-256color for broad compatibility
-set -g default-terminal "screen-256color"
-# Enable RGB/TrueColor support
-set -ag terminal-overrides ",xterm-256color:RGB"
+# tmux-256color (not screen-256color) so italics and the full color set work.
+set -g default-terminal "tmux-256color"
+# Enable RGB/TrueColor. The outer terminal here is kitty, which reports
+# TERM=xterm-kitty, so the old ",xterm-256color:RGB" override never matched and
+# truecolor was silently off. Use -ga on terminal-features: it is idempotent, so
+# reloading the config does not append duplicate entries the way -ag did.
+set -ga terminal-features ",xterm-kitty:RGB"
+set -ga terminal-features ",xterm-256color:RGB"
 
 # MUST stay in sync with tmux/.tmux.conf. matugen renders this template over
 # ~/.tmux.conf, and that path is a SYMLINK into this repo, so apply-theme.sh
