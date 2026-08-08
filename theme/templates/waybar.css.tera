@@ -37,6 +37,7 @@ window#waybar {
    The transition smooths color changes on state changes (e.g. mute toggle).  */
 #clock,
 #window,
+#custom-wallpaper,
 #custom-battery-power,
 #pulseaudio,
 #backlight,
@@ -123,6 +124,18 @@ window#waybar {
 #custom-battery-power.critical {
   background-color: @red;
   color: {{ colors.bg_source.default.hex }};   /* theme bg — ensures contrast on red background */
+}
+
+/* ── Wallpaper rotation ─────────────────────────────────────────────────────
+   Two states only, and they differ by more than color: the paused state adds
+   a pause glyph in the module text, so the state is still readable without
+   relying on hue alone.                                                      */
+#custom-wallpaper {
+  color: @blue;
+}
+
+#custom-wallpaper.paused {
+  color: @comment;   /* de-emphasised: rotation is not currently running */
 }
 
 #pulseaudio {

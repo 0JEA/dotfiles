@@ -12,7 +12,29 @@
     // ── Module layout ─────────────────────────────────────────────────────
     "modules-left":   ["clock", "hyprland/window"],
     "modules-center": ["hyprland/workspaces"],
-    "modules-right":  ["custom/battery-power", "pulseaudio", "backlight", "tray"],
+    "modules-right":  ["custom/wallpaper", "custom/battery-power", "pulseaudio", "backlight", "tray"],
+
+    // ── Wallpaper rotation ────────────────────────────────────────────────
+    // Backed by `wallctl` (~/.local/share/wallmgr). The module is signal-driven
+    // rather than short-polled: wallctl sends RTMIN+8 after any change, so the
+    // pill updates instantly. The 30s interval only keeps the "next in ..."
+    // countdown in the tooltip roughly fresh.
+    //
+    // Absolute paths on purpose. Waybar is started by Hyprland, whose PATH does
+    // NOT include ~/.local/bin (that is added in .zshrc, which a compositor
+    // launch never sources), so a bare `wallctl` here silently renders nothing.
+    "custom/wallpaper": {
+        "exec": "/home/john/.local/bin/wallctl waybar",
+        "return-type": "json",
+        "interval": 30,
+        "signal": 8,
+        "tooltip": true,
+        "on-click": "/home/john/.local/bin/wallctl panel",
+        "on-click-middle": "/home/john/.local/bin/wallctl next",
+        "on-click-right": "/home/john/.local/bin/wallctl toggle",
+        "on-scroll-up": "/home/john/.local/bin/wallctl brightness +5",
+        "on-scroll-down": "/home/john/.local/bin/wallctl brightness -5"
+    },
 
     // ── Workspaces ────────────────────────────────────────────────────────
     // Uses filled/hollow circles so active workspace is visually obvious
