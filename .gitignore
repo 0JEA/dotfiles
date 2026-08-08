@@ -55,3 +55,7 @@ gh/.config/gh/hosts.yml
 
 # superpowers brainstorming companion (mockups, not config)
 .superpowers/
+
+# Python bytecode caches, created by running the themed helper scripts
+__pycache__/
+*.pyc
