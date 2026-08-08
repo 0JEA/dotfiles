@@ -20,23 +20,23 @@ reload_apps = false
 # mush. Two cool anchors keep terminal output readable while the desktop still
 # reads as warm, because the background, foreground and primary accent are.
 [config.custom_colors]
-bg        = { color = "#1a1614", blend = false }
-bg_dark   = { color = "#121010", blend = false }
-bg_hl     = { color = "#2b2320", blend = false }
-fg        = { color = "#f5e6d3", blend = false }
-fg_light  = { color = "#d9c7b3", blend = false }
-comment   = { color = "#8a7867", blend = false }
-blue      = { color = "#ff8c42", blend = false }
-cyan      = { color = "#7fb0a0", blend = false }
-magenta   = { color = "#e0879b", blend = false }
-green     = { color = "#a3b565", blend = false }
-yellow    = { color = "#fabd2f", blend = false }
-orange    = { color = "#ff6b35", blend = false }
-red       = { color = "#f2543d", blend = false }
-selection = { color = "#4a3428", blend = false }
-gray      = { color = "#2b2320", blend = false }
-gray2     = { color = "#3d332e", blend = false }
-bright_black = { color = "#75665a", blend = false }  # 3.26:1 on bg; #5c5148 measured 2.33 and failed
+bg        = { color = "#151111", blend = false }
+bg_dark   = { color = "#0e0c0b", blend = false }
+bg_hl     = { color = "#292121", blend = false }
+fg        = { color = "#eddfde", blend = false }
+fg_light  = { color = "#d2bdbc", blend = false }
+comment   = { color = "#9f7c7a", blend = false }
+blue      = { color = "#e5645d", blend = false }
+cyan      = { color = "#5de59c", blend = false }
+magenta   = { color = "#e55db8", blend = false }
+green     = { color = "#8ce55d", blend = false }
+yellow    = { color = "#e5bb5d", blend = false }
+orange    = { color = "#e5875d", blend = false }
+red       = { color = "#ec8b8a", blend = false }
+selection = { color = "#402a29", blend = false }
+gray      = { color = "#282222", blend = false }
+gray2     = { color = "#3b3332", blend = false }
+bright_black = { color = "#7e6463", blend = false }  # 3.26:1 on bg; #5c5148 measured 2.33 and failed
 
 [templates.kitty]
 input_path  = "~/dotfiles/theme/templates/kitty.conf.tera"

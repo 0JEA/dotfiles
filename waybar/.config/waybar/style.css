@@ -2,16 +2,16 @@
    Named variables mirror the project-wide theme so color changes only need
    to happen in one place. bg uses rgba so the pill floats with slight
    transparency against the wallpaper.                                        */
-@define-color bg       rgba(43, 35, 32, 0.90);
-@define-color fg       #f5e6d3;
-@define-color comment  #8a7867;  /* used for de-emphasised / inactive states */
-@define-color blue     #ff8c42;
-@define-color cyan     #7fb0a0;
-@define-color magenta  #e0879b;
-@define-color green    #a3b565;
-@define-color yellow   #fabd2f;
-@define-color orange   #ff6b35;
-@define-color red      #f2543d;
+@define-color bg       rgba(41, 33, 33, 0.90);
+@define-color fg       #eddfde;
+@define-color comment  #9f7c7a;  /* used for de-emphasised / inactive states */
+@define-color blue     #e5645d;
+@define-color cyan     #5de59c;
+@define-color magenta  #e55db8;
+@define-color green    #8ce55d;
+@define-color yellow   #e5bb5d;
+@define-color orange   #e5875d;
+@define-color red      #ec8b8a;
 
 /* ── Global reset ───────────────────────────────────────────────────────────
    Strip GTK's default widget chrome so pills are the only visual unit.
@@ -37,6 +37,7 @@ window#waybar {
    The transition smooths color changes on state changes (e.g. mute toggle).  */
 #clock,
 #window,
+#custom-wallpaper,
 #custom-battery-power,
 #pulseaudio,
 #backlight,
@@ -57,7 +58,7 @@ window#waybar {
 }
 
 #window {
-  color: #d9c7b3;  /* slightly dimmer than @fg to visually subordinate title */
+  color: #d2bdbc;  /* slightly dimmer than @fg to visually subordinate title */
   font-style: italic;
 }
 
@@ -92,7 +93,7 @@ window#waybar {
 /* Hover uses a translucent tint instead of the full blue to avoid the button
    looking active before it is clicked.                                       */
 #workspaces button:hover {
-  background-color: rgba(255, 140, 66, 0.25);  /* @blue at 25% opacity */
+  background-color: rgba(229, 100, 93, 0.25);  /* @blue at 25% opacity */
   color: @blue;
 }
 
@@ -122,7 +123,19 @@ window#waybar {
    Text uses the dark background color for legibility on the red fill.       */
 #custom-battery-power.critical {
   background-color: @red;
-  color: #1a1614;   /* theme bg — ensures contrast on red background */
+  color: #151111;   /* theme bg — ensures contrast on red background */
+}
+
+/* ── Wallpaper rotation ─────────────────────────────────────────────────────
+   Two states only, and they differ by more than color: the paused state adds
+   a pause glyph in the module text, so the state is still readable without
+   relying on hue alone.                                                      */
+#custom-wallpaper {
+  color: @blue;
+}
+
+#custom-wallpaper.paused {
+  color: @comment;   /* de-emphasised: rotation is not currently running */
 }
 
 #pulseaudio {
