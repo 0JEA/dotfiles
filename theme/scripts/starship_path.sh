@@ -15,20 +15,20 @@ ICON=$'\xF3\xB0\x86\x8D'    # U+F018D MDI console
 
 # --- COLOR PALETTE (Tokyo Night) ---
 # Text inside pills (dark background color)
-TEXT_RGB="26;27;38"      # #1a1b26
+TEXT_RGB="26;22;20"      # #1a1614
 
 # Icon pill color (orange)
-ICON_RGB="255;158;100"   # #ff9e64
+ICON_RGB="255;107;53"   # #ff6b35
 
 # High-contrast segment colors (cycled per directory level)
 SEGMENT_COLORS=(
-    "122;162;247"   # #7aa2f7 blue
-    "125;207;255"   # #7dcfff cyan
-    "187;154;247"   # #bb9af7 magenta
-    "158;206;106"   # #9ece6a green
-    "224;175;104"   # #e0af68 yellow
-    "255;158;100"   # #ff9e64 orange
-    "247;118;142"   # #f7768e red
+    "255;140;66"   # #ff8c42 blue
+    "127;176;160"   # #7fb0a0 cyan
+    "224;135;155"   # #e0879b magenta
+    "163;181;101"   # #a3b565 green
+    "250;189;47"   # #fabd2f yellow
+    "255;107;53"   # #ff6b35 orange
+    "242;84;61"   # #f2543d red
 )
 # Darker variants (~70%) — alternate with SEGMENT_COLORS so each pill edge is visible
 SEGMENT_COLORS_DARK=(

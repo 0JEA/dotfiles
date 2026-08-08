@@ -16,7 +16,7 @@ from gi.repository import Gtk, GtkLayerShell, GLib
 # across replugs, and several keyboards can each expose their own caps LED.
 CAPS_LEDS = "/sys/class/leds/*capslock/brightness"
 HEIGHT    = 3      # px
-COLOR_ON  = "#f7768e"  # Tokyo Night red
+COLOR_ON  = "#f2543d"  # Marigold red
 POLL_MS   = 300
 
 CSS = f"""

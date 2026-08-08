@@ -29,18 +29,18 @@ shell = ["bash"]
 # --- GIT PILL ---
 [git_branch]
 symbol = ""
-style = "bg:#bb9af7 fg:#1a1b26 bold"
+style = "bg:#e0879b fg:#1a1614 bold"
 # Git is optional, so we'll keep it as a standalone pill for safety.
-format = "[](#bb9af7)[$symbol $branch]($style)"
+format = "[](#e0879b)[$symbol $branch]($style)"
 
 [git_status]
-style = "bg:#bb9af7 fg:#1a1b26 bold"
-format = "[$all_status$ahead_behind]($style)[](#bb9af7) "
+style = "bg:#e0879b fg:#1a1614 bold"
+format = "[$all_status$ahead_behind]($style)[](#e0879b) "
 
 # --- PROMPT SYMBOL ---
 [character]
-success_symbol = "[❯ ](bold #7dcfff)"
-error_symbol = "[❯ ](bold #f7768e)"
+success_symbol = "[❯ ](bold #7fb0a0)"
+error_symbol = "[❯ ](bold #f2543d)"
 
 [line_break]
 disabled = true

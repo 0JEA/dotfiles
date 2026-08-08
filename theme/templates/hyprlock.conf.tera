@@ -32,7 +32,7 @@ label {
     valign = center
 }
 
-# Password input — pill shaped, Tokyo Night colors
+# Password input — pill shaped, Marigold colors
 input-field {
     monitor =
     size = 340, 48

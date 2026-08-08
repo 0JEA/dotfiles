@@ -22,7 +22,7 @@
     horizontal_padding = 10
     text_icon_padding = 0
     frame_width = 2
-    frame_color = "#7aa2f7"
+    frame_color = "#ff8c42"
     gap_size = 4
     separator_color = frame
     sort = yes
@@ -71,22 +71,22 @@
     per_monitor_dpi = false
 
 [urgency_low]
-    background = "#1a1b26"
-    foreground = "#c0caf5"
-    frame_color = "#3b4261"
+    background = "#1a1614"
+    foreground = "#f5e6d3"
+    frame_color = "#3d332e"
     timeout = 4
     default_icon = dialog-information
 
 [urgency_normal]
-    background = "#1a1b26"
-    foreground = "#c0caf5"
-    frame_color = "#7aa2f7"
+    background = "#1a1614"
+    foreground = "#f5e6d3"
+    frame_color = "#ff8c42"
     timeout = 6
     default_icon = dialog-information
 
 [urgency_critical]
-    background = "#1a1b26"
-    foreground = "#f7768e"
-    frame_color = "#f7768e"
+    background = "#1a1614"
+    foreground = "#f2543d"
+    frame_color = "#f2543d"
     timeout = 0
     default_icon = dialog-error

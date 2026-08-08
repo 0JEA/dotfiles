@@ -13,19 +13,19 @@
 
 # --- COLOR PALETTE (Tokyo Night Pro inspired) ---
 # Edit these hex codes to change the look of your breadcrumbs.
-TEXT_DARK="#1a1b26"   # Used for text inside the colored pills
-ICON_ORANGE="#ff9e64" # Used for the terminal icon segment
+TEXT_DARK="#1a1614"   # Used for text inside the colored pills
+ICON_ORANGE="#ff6b35" # Used for the terminal icon segment
 BG_DEFAULT="default"  # Usually transparent or your tmux status-bg
 
 # High-contrast colors for path segments (will be cycled through)
 SEGMENT_COLORS=(
-    "#7aa2f7" # Blue
-    "#7dcfff" # Cyan
-    "#bb9af7" # Magenta
-    "#9ece6a" # Green
-    "#e0af68" # Yellow
-    "#ff9e64" # Orange
-    "#f7768e" # Red
+    "#ff8c42" # Blue
+    "#7fb0a0" # Cyan
+    "#e0879b" # Magenta
+    "#a3b565" # Green
+    "#fabd2f" # Yellow
+    "#ff6b35" # Orange
+    "#f2543d" # Red
 )
 NUM_COLORS=${#SEGMENT_COLORS[@]}
 

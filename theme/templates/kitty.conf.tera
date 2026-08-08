@@ -22,12 +22,12 @@ confirm_os_window_close 0
 allow_remote_control socket-only
 listen_on unix:/tmp/kitty
 
-## --- COLORS (Tokyo Night) ---
+## --- COLORS (Marigold) ---
 background {{ colors.bg_source.default.hex }}
 foreground {{ colors.fg_source.default.hex }}
 selection_background {{ colors.selection_source.default.hex }}
 selection_foreground {{ colors.fg_source.default.hex }}
-url_color #73daca
+url_color {{ colors.cyan_source.default.hex }}
 cursor {{ colors.fg_source.default.hex }}
 cursor_text_color {{ colors.bg_source.default.hex }}
 
@@ -35,15 +35,15 @@ cursor_text_color {{ colors.bg_source.default.hex }}
 active_tab_background {{ colors.blue_source.default.hex }}
 active_tab_foreground {{ colors.bg_dark_source.default.hex }}
 inactive_tab_background {{ colors.gray_source.default.hex }}
-inactive_tab_foreground #545c7e
-tab_bar_background #15161e
+inactive_tab_foreground {{ colors.comment_source.default.hex }}
+tab_bar_background {{ colors.bg_dark_source.default.hex }}
 
 # Windows
 active_border_color {{ colors.blue_source.default.hex }}
 inactive_border_color {{ colors.gray_source.default.hex }}
 
 # Normal Colors
-color0 #15161e
+color0 {{ colors.bg_dark_source.default.hex }}
 color1 {{ colors.red_source.default.hex }}
 color2 {{ colors.green_source.default.hex }}
 color3 {{ colors.yellow_source.default.hex }}
@@ -64,4 +64,4 @@ color15 {{ colors.fg_source.default.hex }}
 
 # Extended Colors
 color16 {{ colors.orange_source.default.hex }}
-color17 #db4b4b
+color17 #c9402c

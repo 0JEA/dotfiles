@@ -52,3 +52,6 @@ claude/.claude/settings.local.json
 # That token was ROTATED 2026-08-03, so the historical copy is now inert.
 # Keep this ignored anyway: the file holds live auth and must never be versioned.
 gh/.config/gh/hosts.yml
+
+# superpowers brainstorming companion (mockups, not config)
+.superpowers/

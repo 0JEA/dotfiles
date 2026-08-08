@@ -34,7 +34,7 @@ set -g mouse on
 set -g status off
 set -g destroy-unattached on # Kill session when terminal window is closed
 
-# --- TOKYO NIGHT PRO PALETTE (Reference) ---
+# --- MARIGOLD PALETTE (Reference) ---
 # BG: {{ colors.bg_source.default.hex }} | BLUE: {{ colors.blue_source.default.hex }} | CYAN: {{ colors.cyan_source.default.hex }} | MAGENTA: {{ colors.magenta_source.default.hex }} | GRAY: {{ colors.gray2_source.default.hex }}
 
 # --- MESSAGE & BORDER STYLING ---

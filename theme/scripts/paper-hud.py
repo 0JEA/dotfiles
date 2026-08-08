@@ -73,17 +73,17 @@ class Hud(Gtk.Window):
 
         css = Gtk.CssProvider()
         css.load_from_data(b"""
-            window, box { background:#1a1b26; }
-            label { color:#c0caf5; font-family:"JetBrainsMono Nerd Font",monospace;
+            window, box { background:#1a1614; }
+            label { color:#f5e6d3; font-family:"JetBrainsMono Nerd Font",monospace;
                     font-size:11px; }
-            label.hdr { color:#7aa2f7; font-weight:bold; }
-            label.val { color:#9ece6a; }
-            scale trough { background:#292e42; min-height:5px; }
-            scale highlight { background:#7aa2f7; }
-            scale slider { background:#c0caf5; min-width:14px; min-height:14px; }
-            button { background:#292e42; color:#c0caf5; border:1px solid #414868;
+            label.hdr { color:#ff8c42; font-weight:bold; }
+            label.val { color:#a3b565; }
+            scale trough { background:#2b2320; min-height:5px; }
+            scale highlight { background:#ff8c42; }
+            scale slider { background:#f5e6d3; min-width:14px; min-height:14px; }
+            button { background:#2b2320; color:#f5e6d3; border:1px solid #75665a;
                      font-family:"JetBrainsMono Nerd Font",monospace; font-size:11px; }
-            button:hover { background:#414868; }
+            button:hover { background:#75665a; }
         """)
         Gtk.StyleContext.add_provider_for_screen(
             Gdk.Screen.get_default(), css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)

@@ -1,4 +1,4 @@
-/* ── Tokyo Night palette ────────────────────────────────────────────────────
+/* ── Marigold palette ────────────────────────────────────────────────────
    Named variables mirror the project-wide theme so color changes only need
    to happen in one place. bg uses rgba so the pill floats with slight
    transparency against the wallpaper.                                        */
@@ -122,7 +122,7 @@ window#waybar {
    Text uses the dark background color for legibility on the red fill.       */
 #custom-battery-power.critical {
   background-color: @red;
-  color: {{ colors.bg_source.default.hex }};   /* Tokyo Night bg — ensures contrast on red background */
+  color: {{ colors.bg_source.default.hex }};   /* theme bg — ensures contrast on red background */
 }
 
 #pulseaudio {

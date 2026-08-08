@@ -4,7 +4,44 @@ return {
     "folke/tokyonight.nvim",
     lazy = false,
     priority = 1000,
-    opts = { style = "storm" },
+    opts = {
+      style = "night",
+      -- ── MARIGOLD ────────────────────────────────────────────────────────────
+      -- These MUST mirror [config.custom_colors] in
+      -- ~/dotfiles/theme/matugen/config.toml. nvim is not part of the matugen
+      -- pipeline, so this is the one place the palette is duplicated by hand.
+      -- If the editor background ever stops matching the terminal, this drifted.
+      --
+      -- cyan/teal and magenta/rose stay COOL on purpose — see the note in
+      -- config.toml. All-orange syntax highlighting loses hue distinction.
+      on_colors = function(c)
+        c.bg = "#1a1614"
+        c.bg_dark = "#121010"
+        c.bg_float = "#121010"
+        c.bg_highlight = "#2b2320"
+        c.bg_popup = "#121010"
+        c.bg_sidebar = "#121010"
+        c.bg_statusline = "#121010"
+        c.bg_visual = "#4a3428"
+        c.fg = "#f5e6d3"
+        c.fg_dark = "#d9c7b3"
+        c.fg_float = "#f5e6d3"
+        c.fg_gutter = "#3d332e"
+        c.fg_sidebar = "#d9c7b3"
+        c.comment = "#8a7867"
+        c.blue = "#ff8c42" -- primary accent, matches ANSI color4
+        c.cyan = "#7fb0a0"
+        c.teal = "#7fb0a0"
+        c.magenta = "#e0879b"
+        c.purple = "#e0879b"
+        c.green = "#a3b565"
+        c.yellow = "#fabd2f"
+        c.orange = "#ff6b35"
+        c.red = "#f2543d"
+        c.border = "#3d332e"
+        c.terminal_black = "#75665a"
+      end,
+    },
     config = function(_, opts)
       require("tokyonight").setup(opts)
       vim.cmd([[colorscheme tokyonight]])
