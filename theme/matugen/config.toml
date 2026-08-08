@@ -69,3 +69,10 @@ output_path = "~/.config/hypr/colors.conf"
 [templates.hyprlock]
 input_path  = "~/dotfiles/theme/templates/hyprlock.conf.tera"
 output_path = "~/.config/hypr/hyprlock.conf"
+
+# Raw slots only. The mapping onto tokyonight's colour keys stays in
+# nvim/lua/plugins/example.lua, which is NOT templated, so no editor config can
+# be lost to a template omission.
+[templates.nvim]
+input_path  = "~/dotfiles/theme/templates/nvim-palette.lua.tera"
+output_path = "~/.config/nvim/lua/theme_palette.lua"
