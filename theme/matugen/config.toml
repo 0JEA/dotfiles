@@ -76,3 +76,28 @@ output_path = "~/.config/hypr/hyprlock.conf"
 [templates.nvim]
 input_path  = "~/dotfiles/theme/templates/nvim-palette.lua.tera"
 output_path = "~/.config/nvim/lua/theme_palette.lua"
+
+# Data-only exports. Code files (the Python HUDs, the shell prompt scripts) READ
+# these rather than being templated themselves — matugen writes a rendered
+# template verbatim, so templating a script would hand matugen ownership of the
+# code and delete anything the template omitted.
+[templates.colors_json]
+input_path  = "~/dotfiles/theme/templates/colors.json.tera"
+output_path = "~/.config/theme/colors.json"
+
+[templates.colors_sh]
+input_path  = "~/dotfiles/theme/templates/colors.sh.tera"
+output_path = "~/.config/theme/colors.sh"
+
+# Pure config files, safe for matugen to own end to end.
+[templates.dunst]
+input_path  = "~/dotfiles/theme/templates/dunstrc.tera"
+output_path = "~/.config/dunst/dunstrc"
+
+[templates.imv]
+input_path  = "~/dotfiles/theme/templates/imv.config.tera"
+output_path = "~/.config/imv/config"
+
+[templates.capslockbar]
+input_path  = "~/dotfiles/theme/templates/capslock-bar.css.tera"
+output_path = "~/.config/waybar/capslock-bar.css"

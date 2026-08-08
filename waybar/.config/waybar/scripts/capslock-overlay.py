@@ -6,17 +6,39 @@ Uses gtk-layer-shell so it floats above everything at y=0.
 """
 
 import glob
+import json
+from pathlib import Path
 
 import gi
 gi.require_version("Gtk", "3.0")
 gi.require_version("GtkLayerShell", "0.1")
 from gi.repository import Gtk, GtkLayerShell, GLib
 
+# Palette. matugen generates ~/.config/theme/colors.json from theme/matugen/
+# config.toml, so reading it here means this strip follows a palette switch
+# instead of staying pinned to whichever palette was current when it was written.
+# Any failure (no file, bad JSON, missing key) falls back to the Marigold value
+# below, so the indicator never crashes and never renders unstyled.
+PALETTE = Path("~/.config/theme/colors.json").expanduser()
+FALLBACK_RED = "#f2543d"  # Marigold red
+
+
+def load_red() -> str:
+    try:
+        with open(PALETTE) as fh:
+            val = json.load(fh).get("red")
+        if isinstance(val, str) and val.strip():
+            return val.strip()
+    except Exception:  # noqa: BLE001
+        pass
+    return FALLBACK_RED
+
+
 # Glob rather than hardcode: the inputN index changes between machines and
 # across replugs, and several keyboards can each expose their own caps LED.
 CAPS_LEDS = "/sys/class/leds/*capslock/brightness"
 HEIGHT    = 3      # px
-COLOR_ON  = "#f2543d"  # Marigold red
+COLOR_ON  = load_red()
 POLL_MS   = 300
 
 CSS = f"""

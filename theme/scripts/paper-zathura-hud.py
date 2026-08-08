@@ -23,8 +23,10 @@ Which knobs live where:
 "copy zathurarc" puts the current values on the clipboard as `set ...` lines,
 ready to paste into ~/.config/zathura/zathurarc to make them permanent.
 """
+import json
 import os
 import subprocess
+from pathlib import Path
 
 import gi
 
@@ -32,6 +34,39 @@ gi.require_version("Gtk", "3.0")
 from gi.repository import GLib, Gtk, Gdk  # noqa: E402
 
 DEBOUNCE_MS = 130
+
+# Palette. matugen generates ~/.config/theme/colors.json from theme/matugen/
+# config.toml, so reading it here means this HUD follows a palette switch instead
+# of staying pinned to whichever palette was current when it was written.
+# Any failure (no file, bad JSON, missing key) falls back per-key to the Marigold
+# values below, so the HUD never crashes and never renders unstyled.
+PALETTE = Path("~/.config/theme/colors.json").expanduser()
+FALLBACK = {
+    "bg": "#1a1614",
+    "bg_hl": "#2b2320",
+    "fg": "#f5e6d3",
+    "blue": "#ff8c42",
+    "green": "#a3b565",
+    "yellow": "#fabd2f",
+    "bright_black": "#75665a",
+}
+
+
+def load_palette():
+    colors = dict(FALLBACK)
+    try:
+        with open(PALETTE) as fh:
+            data = json.load(fh)
+        for key in FALLBACK:
+            val = data.get(key)
+            if isinstance(val, str) and val.strip():
+                colors[key] = val.strip()
+    except Exception:                                  # noqa: BLE001
+        pass
+    return colors
+
+
+C = load_palette()
 
 # setting, label, lo, hi, default, step, tooltip
 KNOBS = [
@@ -85,20 +120,20 @@ class Hud(Gtk.Window):
         self.on = True
 
         css = Gtk.CssProvider()
-        css.load_from_data(b"""
-            window, box { background:#1a1614; }
-            label { color:#f5e6d3; font-family:"JetBrainsMono Nerd Font",monospace;
+        css.load_from_data(("""
+            window, box { background:%(bg)s; }
+            label { color:%(fg)s; font-family:"JetBrainsMono Nerd Font",monospace;
                     font-size:11px; }
-            label.hdr { color:#ff8c42; font-weight:bold; }
-            label.val { color:#a3b565; }
-            label.warn { color:#fabd2f; }
-            scale trough { background:#2b2320; min-height:5px; }
-            scale highlight { background:#ff8c42; }
-            scale slider { background:#f5e6d3; min-width:14px; min-height:14px; }
-            button { background:#2b2320; color:#f5e6d3; border:1px solid #75665a;
+            label.hdr { color:%(blue)s; font-weight:bold; }
+            label.val { color:%(green)s; }
+            label.warn { color:%(yellow)s; }
+            scale trough { background:%(bg_hl)s; min-height:5px; }
+            scale highlight { background:%(blue)s; }
+            scale slider { background:%(fg)s; min-width:14px; min-height:14px; }
+            button { background:%(bg_hl)s; color:%(fg)s; border:1px solid %(bright_black)s;
                      font-family:"JetBrainsMono Nerd Font",monospace; font-size:11px; }
-            button:hover { background:#75665a; }
-        """)
+            button:hover { background:%(bright_black)s; }
+        """ % C).encode())
         Gtk.StyleContext.add_provider_for_screen(
             Gdk.Screen.get_default(), css, Gtk.STYLE_PROVIDER_PRIORITY_APPLICATION)
 
