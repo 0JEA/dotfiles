@@ -11,6 +11,15 @@ set -g default-terminal "screen-256color"
 # Enable RGB/TrueColor support
 set -ag terminal-overrides ",xterm-256color:RGB"
 
+# MUST stay in sync with tmux/.tmux.conf. matugen renders this template over
+# ~/.tmux.conf, and that path is a SYMLINK into this repo, so apply-theme.sh
+# writes straight through to the tracked file. Any non-color setting omitted
+# here is silently deleted from the repo on the next re-theme.
+
+# Allow kitty graphics protocol escape sequences through (inline images/plots)
+set -gq allow-passthrough on
+set -g visual-activity off
+
 # --- KEY BINDINGS ---
 # Set the prefix to Ctrl-a (more ergonomic than Ctrl-b)
 set -g prefix C-a

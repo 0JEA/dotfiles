@@ -1,6 +1,15 @@
 # ==============================================================================
 # STARSHIP CONFIGURATION (TOKYO NIGHT / CONNECTED PILLS)
 # ==============================================================================
+# MUST stay in sync with starship/.config/starship.toml. matugen renders this
+# template over ~/.config/starship.toml, and that path is a SYMLINK into this
+# repo, so apply-theme.sh writes straight through to the tracked file. Any
+# non-color setting omitted here is silently deleted from the repo on the next
+# re-theme.
+
+# Directory-scan budget. Default is 30ms, which $HOME (400+ entries) exceeds on a
+# cold btrfs metadata cache -> "Scanning current directory timed out" on first terminal.
+scan_timeout = 500
 
 # Use a clean, one-line format
 format = """
