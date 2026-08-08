@@ -5,12 +5,16 @@ Slides in when caps lock is on, slides out when off.
 Uses gtk-layer-shell so it floats above everything at y=0.
 """
 
+import glob
+
 import gi
 gi.require_version("Gtk", "3.0")
 gi.require_version("GtkLayerShell", "0.1")
 from gi.repository import Gtk, GtkLayerShell, GLib
 
-CAPS_LED  = "/sys/class/leds/input3::capslock/brightness"
+# Glob rather than hardcode: the inputN index changes between machines and
+# across replugs, and several keyboards can each expose their own caps LED.
+CAPS_LEDS = "/sys/class/leds/*capslock/brightness"
 HEIGHT    = 3      # px
 COLOR_ON  = "#f7768e"  # Tokyo Night red
 POLL_MS   = 300
@@ -27,11 +31,14 @@ window.caps-active {{
 
 
 def read_caps() -> bool:
-    try:
-        with open(CAPS_LED) as f:
-            return f.read().strip() == "1"
-    except OSError:
-        return False
+    for path in glob.glob(CAPS_LEDS):
+        try:
+            with open(path) as f:
+                if f.read().strip() == "1":
+                    return True
+        except OSError:
+            continue
+    return False
 
 
 def poll(window: Gtk.Window) -> bool:
