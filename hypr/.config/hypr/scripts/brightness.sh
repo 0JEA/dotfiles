@@ -15,7 +15,9 @@
 # and toggling the paper shader on discards the dim. That was already true
 # before the eww panel existed; the panel just makes it easier to hit.
 
-STATE_FILE="/tmp/hypr_brightness"
+# Private per-user dir, not /tmp: the level read from here goes into awk, so a
+# file another user planted in /tmp could otherwise run code as you.
+STATE_FILE="${XDG_RUNTIME_DIR:-$HOME/.cache}/hypr_brightness"
 SHADER="$HOME/.config/hypr/shaders/dim.glsl"
 TMP_SHADER="$HOME/.config/hypr/shaders/dim.glsl.tmp"
 
@@ -61,6 +63,8 @@ compose_paper_dim() {
 }
 
 current=$(cat "$STATE_FILE" 2>/dev/null || echo "1.0")
+# Only a plain number is accepted; anything else resets to full brightness.
+[[ "$current" =~ ^[0-9]+(\.[0-9]+)?$ ]] || current="1.0"
 
 # Push the level straight into eww. The panel polls this every 2 seconds, so
 # without it the slider and its number lagged behind the key or the drag by up
@@ -69,7 +73,7 @@ current=$(cat "$STATE_FILE" 2>/dev/null || echo "1.0")
 push_eww() {
     local helper="$HOME/.config/eww/scripts/eww-push.sh"
     [ -x "$helper" ] || return 0
-    "$helper" bright "$(awk "BEGIN {printf \"%.0f\", $1*100}")"
+    "$helper" bright "$(awk -v v="$1" 'BEGIN {printf "%.0f", v*100}')"
 }
 
 # Write a 0.1-1.0 multiplier to the state file and install (or clear) the shader.
@@ -115,22 +119,22 @@ reapply)
     exit 0
     ;;
 get)
-    awk "BEGIN {printf \"%.0f\", $current*100}"
+    awk -v v="$current" 'BEGIN {printf "%.0f", v*100}'
     exit 0
     ;;
 set)
     pct="$2"
     case "$pct" in ''|*[!0-9.]*) exit 1 ;; esac
-    new=$(awk "BEGIN {v=$pct/100; if(v>1.0) v=1.0; if(v<0.1) v=0.1; printf \"%.1f\", v}")
+    new=$(awk -v p="$pct" 'BEGIN {v=p/100; if(v>1.0) v=1.0; if(v<0.1) v=0.1; printf "%.1f", v}')
     apply "$new"
     exit 0
     ;;
 esac
 
 if [ "$1" = "up" ]; then
-    new=$(awk "BEGIN {v=$current+0.1; if(v>1.0) v=1.0; printf \"%.1f\", v}")
+    new=$(awk -v c="$current" 'BEGIN {v=c+0.1; if(v>1.0) v=1.0; printf "%.1f", v}')
 else
-    new=$(awk "BEGIN {v=$current-0.1; if(v<0.1) v=0.1; printf \"%.1f\", v}")
+    new=$(awk -v c="$current" 'BEGIN {v=c-0.1; if(v<0.1) v=0.1; printf "%.1f", v}')
 fi
 
 apply "$new"
