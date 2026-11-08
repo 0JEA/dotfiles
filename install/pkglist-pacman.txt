@@ -1,6 +1,8 @@
 7zip
 amd-ucode
 ark
+awww
+ayatana-ido
 base
 base-devel
 bluez
@@ -43,6 +45,7 @@ kde-cli-tools
 keepassxc
 kitty
 lazygit
+libayatana-indicator
 libpulse
 linux
 linux-firmware
@@ -51,8 +54,8 @@ maven
 mpv
 nano
 neovim
-networkmanager
 network-manager-applet
+networkmanager
 nodejs
 npm
 obsidian
@@ -77,7 +80,6 @@ snapper
 starship
 stow
 sudo
-awww
 system-config-printer
 tealdeer
 thunderbird

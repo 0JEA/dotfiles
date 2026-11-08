@@ -228,6 +228,8 @@ Run `bash install/check-packages.sh` after editing any list or this file. It fai
 | Package | Notes |
 |---------|-------|
 | `mpv` | Video player |
+| `libayatana-indicator` | Library Spotify needs but its AUR package doesn't list. Without it Spotify fails to start |
+| `ayatana-ido` | Same, the second library Spotify needs |
 
 ## Productivity
 
