@@ -8,12 +8,17 @@
 # starship's scan_timeout and tmux's allow-passthrough on this machine.
 
 [global]
-    monitor = 0
+    # No `monitor` line: `follow = mouse` overrides it outright, so setting both
+    # just leaves a value that looks meaningful and is not.
     follow = mouse
-    width = 300
-    height = 300
+    # (min, max): short notices stay compact instead of being padded out to a
+    # fixed 300, and long ones get room rather than wrapping to four lines.
+    width = (300, 460)
+    height = (0, 300)
     origin = top-right
-    offset = 10x10
+    # (horizontal, vertical). 46 clears waybar: it sits at y=6, is 28 tall and
+    # keeps a 12px margin. At the old 10 the first popup overlapped the bar.
+    offset = (12, 46)
     scale = 0
     notification_limit = 5
 
@@ -27,20 +32,29 @@
     indicate_hidden = yes
     transparency = 10
     separator_height = 2
-    padding = 8
-    horizontal_padding = 10
+    padding = 12
+    horizontal_padding = 14
     text_icon_padding = 0
-    frame_width = 2
+    frame_width = 1
     frame_color = "{{ colors.blue_source.default.hex }}"
-    gap_size = 4
+    gap_size = 8
     separator_color = frame
     sort = yes
-    idle_threshold = 120
+    # 0 = never pause expiry. This was 120, which stopped the timeout clock
+    # whenever there had been no input for 2 minutes -- so anything arriving
+    # while you were away from the desk was still on screen when you got back,
+    # stacked up, regardless of its timeout. That is the second reason popups
+    # appeared to live forever. History still has everything.
+    idle_threshold = 0
 
-    font = JetBrainsMono Nerd Font 10
+    font = JetBrainsMono Nerd Font 11
     line_height = 0
     markup = full
-    format = "<b>%s</b>\n%b"
+    # App name first, dimmed and small: five Thunderbird popups in a row were
+    # otherwise identical down to the wording. %a is the sending application.
+    # %% is a LITERAL percent. Written as '55%' dunst parses the %' as a format
+    # specifier and warns "format_string %' is unknown" on every notification.
+    format = "<span alpha='55%%'>%a</span>\n<b>%s</b>\n%b"
     alignment = left
     vertical_alignment = center
     show_age_threshold = 60
@@ -57,7 +71,10 @@
     icon_corner_radius = 5
 
     sticky_history = yes
-    history_length = 20
+    # Raised from 20. Expiry no longer pauses while you are idle, so anything
+    # that arrives while you are away from the desk times out unseen and the
+    # history IS the record of it -- 20 was small enough to lose a busy morning.
+    history_length = 100
 
     dmenu = /usr/bin/wofi -p dunst --dmenu
     browser = /usr/bin/xdg-open
@@ -66,7 +83,7 @@
     title = Dunst
     class = Dunst
 
-    corner_radius = 8
+    corner_radius = 14
     ignore_dbusclose = false
 
     force_xwayland = false
@@ -83,19 +100,23 @@
     background = "{{ colors.bg_source.default.hex }}"
     foreground = "{{ colors.fg_source.default.hex }}"
     frame_color = "{{ colors.gray2_source.default.hex }}"
-    timeout = 4
+    timeout = 5
     default_icon = dialog-information
 
 [urgency_normal]
     background = "{{ colors.bg_source.default.hex }}"
     foreground = "{{ colors.fg_source.default.hex }}"
     frame_color = "{{ colors.blue_source.default.hex }}"
-    timeout = 6
+    timeout = 9
     default_icon = dialog-information
 
 [urgency_critical]
     background = "{{ colors.bg_source.default.hex }}"
     foreground = "{{ colors.red_source.default.hex }}"
     frame_color = "{{ colors.red_source.default.hex }}"
-    timeout = 0
+    # Was 0, which means NEVER EXPIRE -- critical popups sat on screen until
+    # clicked. 25s is long enough to be unmissable and still self-clearing;
+    # nothing is lost, because dunst keeps history and the Super+W panel reads
+    # it back over dunstctl.
+    timeout = 25
     default_icon = dialog-error

@@ -13,30 +13,33 @@ reload_apps = false
 #
 #   blue    -> primary orange. Drives every UI accent and ANSI color4.
 #   cyan    -> muted teal.  Deliberately COOL.
-#   magenta -> dusty rose.  Deliberately COOL.
+#   magenta -> sea blue.   Deliberately COOL. Was violet #bb5de5 under Reef;
+#              at 280deg it was the one hue outside the palette's green->orange
+#              sweep, and it drives nvim keywords/identifiers, so it dominated
+#              the editor. 210deg keeps it clear of cyan (180) and green (140).
 #
 # cyan and magenta stay cool on purpose. If all six ANSI hues were orange,
 # `ls`, diffs and syntax highlighting would lose hue distinction and turn to
 # mush. Two cool anchors keep terminal output readable while the desktop still
 # reads as warm, because the background, foreground and primary accent are.
 [config.custom_colors]
-bg        = { color = "#151111", blend = false }
-bg_dark   = { color = "#0e0c0b", blend = false }
-bg_hl     = { color = "#292121", blend = false }
-fg        = { color = "#eddfde", blend = false }
-fg_light  = { color = "#d2bdbc", blend = false }
-comment   = { color = "#9f7c7a", blend = false }
-blue      = { color = "#e5645d", blend = false }
-cyan      = { color = "#5de59c", blend = false }
-magenta   = { color = "#e55db8", blend = false }
-green     = { color = "#8ce55d", blend = false }
-yellow    = { color = "#e5bb5d", blend = false }
-orange    = { color = "#e5875d", blend = false }
-red       = { color = "#ec8b8a", blend = false }
-selection = { color = "#402a29", blend = false }
-gray      = { color = "#282222", blend = false }
-gray2     = { color = "#3b3332", blend = false }
-bright_black = { color = "#7e6463", blend = false }  # 3.26:1 on bg; #5c5148 measured 2.33 and failed
+bg        = { color = "#1a1b26", blend = false }
+bg_dark   = { color = "#16161e", blend = false }
+bg_hl     = { color = "#24283b", blend = false }
+fg        = { color = "#c0caf5", blend = false }
+fg_light  = { color = "#a9b1d6", blend = false }
+comment   = { color = "#565f89", blend = false }
+blue      = { color = "#7aa2f7", blend = false }
+cyan      = { color = "#7dcfff", blend = false }
+magenta   = { color = "#bb9af7", blend = false }
+green     = { color = "#9ece6a", blend = false }
+yellow    = { color = "#e0af68", blend = false }
+orange    = { color = "#ff9e64", blend = false }
+red       = { color = "#f7768e", blend = false }
+selection = { color = "#33467c", blend = false }
+gray      = { color = "#292e42", blend = false }
+gray2     = { color = "#3b4261", blend = false }
+bright_black = { color = "#414868", blend = false }  # 3.26:1 on bg; #5c5148 measured 2.33 and failed
 
 [templates.kitty]
 input_path  = "~/dotfiles/theme/templates/kitty.conf.tera"
@@ -101,3 +104,12 @@ output_path = "~/.config/imv/config"
 [templates.capslockbar]
 input_path  = "~/dotfiles/theme/templates/capslock-bar.css.tera"
 output_path = "~/.config/waybar/capslock-bar.css"
+
+# TOKENS ONLY, imported by the hand-written eww/.config/eww/eww.scss. The panel's
+# layout CSS is deliberately NOT templated, for the same reason the Python HUDs
+# are not: matugen writes a rendered template verbatim and deletes whatever the
+# template omits, so handing it a stylesheet would hand it ownership of the
+# layout too.
+[templates.eww]
+input_path  = "~/dotfiles/theme/templates/eww-colors.scss.tera"
+output_path = "~/.config/eww/colors.scss"
