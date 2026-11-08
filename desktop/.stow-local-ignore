@@ -1,0 +1,6 @@
+# Only .local/ is meant to be symlinked into $HOME by stow.
+# applications/ holds .desktop entries that must be installed as REAL FILES
+# (see README.md and install.sh), and README.md itself is documentation.
+^/README\.md$
+^/install\.sh$
+^/applications$

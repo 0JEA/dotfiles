@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+# Launch imv from a file manager, tolerating both argument styles.
+#
+# WHY THIS EXISTS:
+# /usr/bin/imv-dir takes plain filesystem PATHS. Some launchers (KDE/KIO, which
+# is what Dolphin uses) hand the application a percent-encoded `file://` URL
+# instead. imv does not parse URLs, so it exits immediately with
+#   Invalid starting image: file:///home/john/Pictures/a%20photo.jpg
+# and from the file manager it just looks like double-clicking does nothing.
+#
+# Normalising here rather than in the .desktop file means it works no matter
+# which of the two an individual launcher chooses.
+#
+# It also reproduces imv-dir's genuinely useful behaviour: given ONE image, open
+# the whole containing folder with that image selected, so the arrow keys page
+# through the directory instead of showing a single stranded picture.
+set -uo pipefail
+
+# Temporary instrumentation: proves whether a launcher actually reached THIS
+# wrapper (i.e. used imv-open.desktop) rather than one of the packaged imv
+# entries, which produce an identical-looking imv window.
+printf '%s | argc=%d | %s\n' "$(date '+%F %T')" "$#" "$*" >> /tmp/imv-open-debug.log 2>/dev/null || true
+
+# %XX -> byte. The +-to-space substitution is deliberately NOT done: '+' is a
+# literal plus in a file path, and only means "space" in query strings.
+urldecode() {
+    local s="$1"
+    printf '%b' "${s//%/\\x}"
+}
+
+args=()
+for a in "$@"; do
+    case "$a" in
+        file://*)
+            a="${a#file://}"        # strip scheme
+            a="$(urldecode "$a")"   # %20 -> space, etc.
+            ;;
+    esac
+    args+=("$a")
+done
+
+if [ "${#args[@]}" -eq 0 ]; then
+    exec imv
+elif [ "${#args[@]}" -eq 1 ] && [ -f "${args[0]}" ]; then
+    # -n selects the given file within the folder that gets loaded.
+    exec imv -n "${args[0]}" "$(dirname "${args[0]}")"
+else
+    exec imv "${args[@]}"
+fi
