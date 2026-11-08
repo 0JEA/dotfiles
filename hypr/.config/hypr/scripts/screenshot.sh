@@ -4,7 +4,13 @@
 #   mode: region (default), window, screen
 
 MODE="${1:-region}"
-SAVEDIR="${HYPRSHOT_DIR:-${XDG_PICTURES_DIR:-$HOME}}"
+# XDG_PICTURES_DIR is often NOT exported into the compositor session even when
+# ~/.config/user-dirs.dirs exists, so fall back to querying xdg-user-dir directly
+# rather than to $HOME (which is what dumped 300+ loose screenshots into ~ before
+# 2026-08-28). Flat hyprshot dump lives alongside the dated session subfolders.
+SAVEDIR="${HYPRSHOT_DIR:-${XDG_PICTURES_DIR:-$(xdg-user-dir PICTURES 2>/dev/null)}}"
+SAVEDIR="${SAVEDIR:-$HOME/Pictures}/Screenshots"
+mkdir -p "$SAVEDIR"
 FILEPATH="$SAVEDIR/$(date +'%Y-%m-%d-%H%M%S')_screenshot.png"
 
 # Disable blur and make inactive windows fully opaque
@@ -22,7 +28,14 @@ case "$MODE" in
         grim -g "$GEOM" "$FILEPATH"
         ;;
     region|*)
-        grim -g "$(slurp)" "$FILEPATH"
+        # Freeze the screen while selecting, so hover popups/tooltips that close
+        # when slurp grabs the pointer are still in the shot (same trick as hyprshot -z).
+        hyprpicker -r -z &
+        PICKER=$!
+        sleep 0.2
+        GEOM=$(slurp)
+        [ -n "$GEOM" ] && grim -g "$GEOM" "$FILEPATH"
+        kill "$PICKER" 2>/dev/null
         ;;
 esac
 
