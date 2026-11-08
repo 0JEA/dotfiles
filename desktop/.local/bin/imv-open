@@ -19,7 +19,12 @@ set -uo pipefail
 # Temporary instrumentation: proves whether a launcher actually reached THIS
 # wrapper (i.e. used imv-open.desktop) rather than one of the packaged imv
 # entries, which produce an identical-looking imv window.
-printf '%s | argc=%d | %s\n' "$(date '+%F %T')" "$#" "$*" >> /tmp/imv-open-debug.log 2>/dev/null || true
+# Off unless IMV_OPEN_DEBUG=1. Logs to $XDG_RUNTIME_DIR (private, mode 700),
+# not /tmp, where any user could read the file paths or plant a symlink.
+if [[ "${IMV_OPEN_DEBUG:-0}" == 1 ]]; then
+    printf '%s | argc=%d | %s\n' "$(date '+%F %T')" "$#" "$*" \
+        >> "${XDG_RUNTIME_DIR:-$HOME/.cache}/imv-open-debug.log" 2>/dev/null || true
+fi
 
 # %XX -> byte. The +-to-space substitution is deliberately NOT done: '+' is a
 # literal plus in a file path, and only means "space" in query strings.
