@@ -54,6 +54,10 @@ export PATH="$HOME/bin:$PATH"
 # ssh-agent (systemd user socket)
 export SSH_AUTH_SOCK="$XDG_RUNTIME_DIR/ssh-agent.socket"
 
+# Default editor for git, crontab -e, sudoedit, etc.
+export EDITOR=nvim
+export VISUAL=nvim
+
 # Raise Claude Code's per-session web-search cap (default 200 was hit during long research runs)
 export CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION=100000
 
