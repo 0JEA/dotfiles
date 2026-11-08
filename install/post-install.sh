@@ -55,16 +55,6 @@ log "Setting default shell to zsh..."
 chsh -s /usr/bin/zsh "$USERNAME"
 
 # ---------------------------------------------------------------------------
-# 3b. Initialize MariaDB (if installed)
-# ---------------------------------------------------------------------------
-if pacman -Qq mariadb &>/dev/null; then
-    log "Initializing MariaDB..."
-    mariadb-install-db --user=mysql --basedir=/usr --datadir=/var/lib/mysql 2>/dev/null \
-        || log "  WARNING: mariadb-install-db failed (may already be initialized)"
-    systemctl enable mariadb
-fi
-
-# ---------------------------------------------------------------------------
 # 4. Configure zram
 # ---------------------------------------------------------------------------
 log "Configuring zram..."
@@ -80,10 +70,8 @@ EOF
 # ---------------------------------------------------------------------------
 log "Enabling system services..."
 systemctl enable sddm
-systemctl enable bluetooth
 systemctl enable cups
 systemctl enable NetworkManager
-systemctl enable power-profiles-daemon
 
 # snapper: create root config and enable timers
 if pacman -Qq snapper &>/dev/null; then
@@ -118,6 +106,53 @@ AUR_PKGS=$(tr '\n' ' ' < /tmp/pkglist-aur.txt)
 # shellcheck disable=SC2086
 sudo -u "$USERNAME" yay -S --needed --noconfirm $AUR_PKGS
 
+# Install one hardware-specific list from GitHub. Repo packages go through
+# pacman as root; only AUR ones need yay.
+install_list() {
+    local name=$1 p
+    local repo=() aur=()
+    wget -q "$BASE_URL/$name" -O "/tmp/$name"
+    while read -r p; do
+        [[ -z "$p" ]] && continue
+        if pacman -Si "$p" &>/dev/null; then repo+=("$p"); else aur+=("$p"); fi
+    done < "/tmp/$name"
+    if [[ ${#repo[@]} -gt 0 ]]; then
+        pacman -S --needed --noconfirm "${repo[@]}"
+    fi
+    if [[ ${#aur[@]} -gt 0 ]]; then
+        sudo -u "$USERNAME" yay -S --needed --noconfirm "${aur[@]}"
+    fi
+}
+
+# Laptop-only hardware packages (Wi-Fi, Bluetooth, backlight, AMD graphics).
+# Laptop = hostnamectl says so, or any battery is present.
+CHASSIS=$(hostnamectl chassis 2>/dev/null || true)
+HAS_BATTERY=0
+for t in /sys/class/power_supply/*/type; do
+    [[ -r "$t" && "$(cat "$t")" == "Battery" ]] && HAS_BATTERY=1
+done
+if [[ "$CHASSIS" =~ ^(laptop|convertible|tablet)$ ]] || [[ $HAS_BATTERY -eq 1 ]]; then
+    log "Laptop detected (chassis=${CHASSIS:-unknown}), installing pkglist-laptop.txt..."
+    install_list pkglist-laptop.txt
+    systemctl enable bluetooth
+    systemctl enable power-profiles-daemon
+else
+    log "Not a laptop (chassis=${CHASSIS:-unknown}), skipping pkglist-laptop.txt"
+fi
+
+# NVIDIA driver, only when an NVIDIA display card is present (PCI vendor 0x10de,
+# class 0x03xxxx). Read from sysfs so it doesn't need pciutils.
+HAS_NVIDIA=0
+for d in /sys/bus/pci/devices/*; do
+    [[ "$(cat "$d/vendor" 2>/dev/null)" == "0x10de" && "$(cat "$d/class" 2>/dev/null)" == 0x03* ]] && HAS_NVIDIA=1
+done
+if [[ $HAS_NVIDIA -eq 1 ]]; then
+    log "NVIDIA GPU detected, installing pkglist-nvidia.txt..."
+    install_list pkglist-nvidia.txt
+else
+    log "No NVIDIA GPU, skipping pkglist-nvidia.txt"
+fi
+
 # ---------------------------------------------------------------------------
 # 8. SDDM theme configuration
 # ---------------------------------------------------------------------------
@@ -142,7 +177,10 @@ fi
 # 10. Stow all config packages
 # ---------------------------------------------------------------------------
 log "Stowing dotfiles..."
-STOW_PKGS=(bash zsh nvim hypr kitty lazygit tmux starship waybar wofi yazi btop gh dunst qutebrowser)
+STOW_PKGS=(bash zsh nvim hypr kitty lazygit tmux starship waybar wofi yazi btop gh dunst qutebrowser eww)
+# Stowed with --no-folding: ~/.config/gtk-3.0 must stay a real directory, or GTK
+# writes bookmarks and other state into the repo.
+NO_FOLD_PKGS=(gtk)
 
 # Ensure stow target dirs exist
 sudo -u "$USERNAME" mkdir -p "$USER_HOME/.config"
@@ -151,6 +189,15 @@ for pkg in "${STOW_PKGS[@]}"; do
     if [[ -d "$USER_HOME/dotfiles/$pkg" ]]; then
         sudo -u "$USERNAME" bash -c "cd '$USER_HOME/dotfiles' && stow --target='$USER_HOME' '$pkg'" \
             && log "  stowed: $pkg" \
+            || log "  WARNING: stow failed for $pkg (conflicts?)"
+    else
+        log "  SKIP: $pkg directory not found in dotfiles"
+    fi
+done
+for pkg in "${NO_FOLD_PKGS[@]}"; do
+    if [[ -d "$USER_HOME/dotfiles/$pkg" ]]; then
+        sudo -u "$USERNAME" bash -c "cd '$USER_HOME/dotfiles' && stow --no-folding --target='$USER_HOME' '$pkg'" \
+            && log "  stowed: $pkg (no folding)" \
             || log "  WARNING: stow failed for $pkg (conflicts?)"
     else
         log "  SKIP: $pkg directory not found in dotfiles"

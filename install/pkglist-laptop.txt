@@ -1,0 +1,10 @@
+bluez-utils
+brightnessctl
+iwd
+power-profiles-daemon
+sof-firmware
+vulkan-radeon
+wireless_tools
+xf86-video-amdgpu
+xf86-video-ati
+xorg-xinit

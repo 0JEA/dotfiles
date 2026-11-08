@@ -1,7 +1,11 @@
 # Package Reference
 
 Human-readable package list organized by category.
-Machine-readable lists: `pkglist-pacman.txt`, `pkglist-aur.txt`, `pkglist-npm.txt`.
+Machine-readable lists: `pkglist-pacman.txt`, `pkglist-aur.txt`, `pkglist-npm.txt`,
+`pkglist-laptop.txt` (installed only when the machine is a laptop) and `pkglist-nvidia.txt`
+(installed only when an NVIDIA GPU is present). `arch-install.sh` installs a few more with pacstrap.
+
+Run `bash install/check-packages.sh` after editing any list or this file. It fails if the two disagree.
 
 ---
 
@@ -18,6 +22,7 @@ Machine-readable lists: `pkglist-pacman.txt`, `pkglist-aur.txt`, `pkglist-npm.tx
 | `nano` | Fallback editor |
 | `vim` | Fallback editor |
 | `wget` | HTTP downloader |
+| `curl` | HTTP client (pacstrap) |
 | `unzip` | Archive extraction |
 
 ## Boot
@@ -42,9 +47,9 @@ Machine-readable lists: `pkglist-pacman.txt`, `pkglist-aur.txt`, `pkglist-npm.tx
 |---------|-------|
 | `networkmanager` | Network management daemon |
 | `network-manager-applet` | Tray applet for NM |
-| `iwd` | Intel wireless daemon (backend for NM wifi) |
+| `iwd` | **Laptop only** (`pkglist-laptop.txt`). Intel wireless daemon (backend for NM wifi) |
 | `wpa_supplicant` | WPA/WPA2 authentication |
-| `wireless_tools` | Legacy wireless CLI tools |
+| `wireless_tools` | **Laptop only** (`pkglist-laptop.txt`). Legacy wireless CLI tools |
 | `wireguard-tools` | WireGuard VPN |
 | `openvpn` | OpenVPN client |
 
@@ -63,8 +68,7 @@ Machine-readable lists: `pkglist-pacman.txt`, `pkglist-aur.txt`, `pkglist-npm.tx
 | `qt5-wayland` | Qt5 Wayland support |
 | `qt6-wayland` | Qt6 Wayland support |
 | `xorg-server` | X11 server (for apps that need it) |
-| `xorg-xinit` | X11 init utilities |
-| `polkit-kde-agent` | Polkit agent (KDE, works in Hyprland) |
+| `xorg-xinit` | **Laptop only** (`pkglist-laptop.txt`). X11 init utilities |
 
 ## Status Bar & Launcher
 
@@ -73,7 +77,7 @@ Machine-readable lists: `pkglist-pacman.txt`, `pkglist-aur.txt`, `pkglist-npm.tx
 | `waybar` | Status bar |
 | `wofi` | App launcher / dmenu replacement |
 | `dunst` | Notification daemon |
-| `swww` | Wallpaper daemon (smooth transitions) |
+| `awww` | Wallpaper daemon (successor to swww) |
 
 ## Terminal & Shell
 
@@ -82,7 +86,6 @@ Machine-readable lists: `pkglist-pacman.txt`, `pkglist-aur.txt`, `pkglist-npm.tx
 | `kitty` | GPU-accelerated terminal |
 | `tmux` | Terminal multiplexer |
 | `starship` | Cross-shell prompt |
-| `bash` | (base, already in `base`) |
 | `zsh` | Z shell |
 
 ## CLI Tools
@@ -109,6 +112,9 @@ Machine-readable lists: `pkglist-pacman.txt`, `pkglist-aur.txt`, `pkglist-npm.tx
 |---------|-------|
 | `yazi` | Terminal file manager |
 | `dolphin` | GUI file manager (KDE) |
+| `kde-cli-tools` | KDE helpers Dolphin uses ("Open with", file associations) |
+| `ark` | Archive manager (KDE, opens archives from Dolphin) |
+| `imv` | Image viewer (Wayland), themed by matugen |
 | `feh` | Image viewer / wallpaper setter |
 | `fuse2` | FUSE 2.x support (AppImages) |
 | `7zip` | Archive tool |
@@ -117,10 +123,12 @@ Machine-readable lists: `pkglist-pacman.txt`, `pkglist-aur.txt`, `pkglist-npm.tx
 
 | Package | Notes |
 |---------|-------|
-| `vulkan-radeon` | AMD Vulkan driver (RADV) |
-| `xf86-video-amdgpu` | AMD modesetting driver |
-| `xf86-video-ati` | Older AMD driver (fallback) |
-| `brightnessctl` | Backlight control |
+| `nvidia-open-dkms` | **NVIDIA only** (`pkglist-nvidia.txt`). NVIDIA open kernel driver, built by DKMS (pulls in `nvidia-utils`) |
+| `linux-headers` | **NVIDIA only** (`pkglist-nvidia.txt`). Kernel headers DKMS needs to build the driver |
+| `vulkan-radeon` | **Laptop only** (`pkglist-laptop.txt`). AMD Vulkan driver (RADV) |
+| `xf86-video-amdgpu` | **Laptop only** (`pkglist-laptop.txt`). AMD modesetting driver |
+| `xf86-video-ati` | **Laptop only** (`pkglist-laptop.txt`). Older AMD driver (fallback) |
+| `brightnessctl` | **Laptop only** (`pkglist-laptop.txt`). Backlight control |
 
 ## Audio
 
@@ -140,7 +148,7 @@ Machine-readable lists: `pkglist-pacman.txt`, `pkglist-aur.txt`, `pkglist-npm.tx
 | Package | Notes |
 |---------|-------|
 | `bluez` | Bluetooth protocol stack |
-| `bluez-utils` | Bluetooth CLI tools (`bluetoothctl`) |
+| `bluez-utils` | **Laptop only** (`pkglist-laptop.txt`). Bluetooth CLI tools (`bluetoothctl`) |
 
 ## Printing
 
@@ -177,7 +185,6 @@ Machine-readable lists: `pkglist-pacman.txt`, `pkglist-aur.txt`, `pkglist-npm.tx
 |---------|-------|
 | `gnome-keyring` | Secret storage daemon |
 | `keepassxc` | Password manager (KeePassXC) |
-| `fprintd` | Fingerprint authentication daemon |
 
 ## Development
 
@@ -194,9 +201,6 @@ Machine-readable lists: `pkglist-pacman.txt`, `pkglist-aur.txt`, `pkglist-npm.tx
 | `pyright` | Python type checker / LSP |
 | `python-pynvim` | Python Neovim client (for Neovim plugins) |
 | `luarocks` | Lua package manager |
-| `mariadb` | MySQL-compatible database server |
-| `mysql-workbench` | MySQL/MariaDB GUI |
-| `dbeaver` | Universal database GUI |
 
 ## Editor
 
@@ -213,6 +217,12 @@ Machine-readable lists: `pkglist-pacman.txt`, `pkglist-aur.txt`, `pkglist-npm.tx
 | `chromium` | Secondary browser |
 | `qutebrowser` | Keyboard-driven browser |
 
+## Chat
+
+| Package | Notes |
+|---------|-------|
+| `discord` | Discord client |
+
 ## Media
 
 | Package | Notes |
@@ -224,6 +234,7 @@ Machine-readable lists: `pkglist-pacman.txt`, `pkglist-aur.txt`, `pkglist-npm.tx
 | Package | Notes |
 |---------|-------|
 | `obsidian` | Markdown notes |
+| `thunderbird` | Email client |
 | `zathura` | PDF/document viewer |
 | `zathura-pdf-poppler` | PDF backend for Zathura |
 
@@ -237,14 +248,14 @@ Machine-readable lists: `pkglist-pacman.txt`, `pkglist-aur.txt`, `pkglist-npm.tx
 
 | Package | Notes |
 |---------|-------|
-| `power-profiles-daemon` | CPU power profile management |
+| `power-profiles-daemon` | **Laptop only** (`pkglist-laptop.txt`). CPU power profile management |
 
 ## System Utilities
 
 | Package | Notes |
 |---------|-------|
 | `sddm` | Display manager (login screen) |
-| `sof-firmware` | Sound Open Firmware (modern Intel/AMD sound) |
+| `sof-firmware` | **Laptop only** (`pkglist-laptop.txt`). Sound Open Firmware (modern Intel/AMD sound) |
 
 ---
 
@@ -254,10 +265,9 @@ Installed via `yay`. `yay` itself is bootstrapped from source in `post-install.s
 
 | Package | Notes |
 |---------|-------|
-| `libfprint-git` | Fingerprint reader driver (git version) — **known broken** on ELAN 04f3:0903 ("No minutiae found"); installed anyway for future fix |
+| `eww` | Widget system (Super+W side panel) |
 | `matugen` | Material You theme generator (generates color schemes from wallpaper) |
 | `spotify` | Music streaming client |
-| `vesktop` | Discord client with Vencord (better than official Discord app) |
 | `where-is-my-sddm-theme-git` | Minimal SDDM theme |
 
 ---
@@ -268,7 +278,6 @@ Installed via `npm install -g`.
 
 | Package | Notes |
 |---------|-------|
-| `@google/gemini-cli` | Google Gemini CLI |
 | `pyright` | Python LSP (also in pacman — npm version for global CLI use) |
 
 ---
@@ -280,5 +289,6 @@ These are managed separately or are system-specific:
 | Package | Notes |
 |---------|-------|
 | `yay` | AUR helper — bootstrapped from source in `post-install.sh`, not in any list |
-| `discord` | Official Discord app — use `vesktop` instead |
-| `wpa_supplicant` | Listed in pacman but NetworkManager usually handles this via iwd |
+| `bash` | Comes with `base` |
+| `fprintd` | Laptop fingerprint daemon. Left out on purpose, with `libfprint-git`: the two conflict, which stops an unattended install, and the laptop's ELAN 04f3:0903 sensor doesn't work with libfprint anyway ("No minutiae found"). Install by hand if a driver fix lands |
+| `libfprint-git` | Laptop fingerprint driver. Left out with `fprintd`, see above |

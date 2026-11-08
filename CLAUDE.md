@@ -45,7 +45,11 @@ bash install/post-install.sh
 | `install/pkglist-pacman.txt` | pacman packages (`pacman -S --needed - < pkglist-pacman.txt`) |
 | `install/pkglist-aur.txt` | AUR packages (`yay -S --needed - < pkglist-aur.txt`) |
 | `install/pkglist-npm.txt` | Global npm packages |
+| `install/pkglist-laptop.txt` | Installed by `post-install.sh` only on a laptop (chassis or battery check) |
+| `install/pkglist-nvidia.txt` | Installed by `post-install.sh` only when an NVIDIA GPU is present |
 | `install/packages.md` | Human-readable reference with categories |
+
+After changing any list or `packages.md`, run `bash install/check-packages.sh`. It exits 1 if they disagree.
 
 ## Architecture
 
@@ -62,7 +66,7 @@ Each directory is a stow "package". The internal structure mirrors `$HOME`:
 - **WM**: Hyprland (config: `hypr/.config/hypr/hyprland.conf`)
 - **Bar**: Waybar (config + scripts: `waybar/.config/waybar/`)
 - **Terminal**: Kitty → auto-attaches to tmux on shell init
-- **Shell**: Zsh (primary) / Bash — both define a `gem()` function for Gemini CLI
+- **Shell**: Zsh (primary) / Bash
 - **Prompt**: Starship with a custom path-coloring script (`theme/scripts/starship_path.sh`)
 - **Launcher**: Wofi
 - **Notifications**: Dunst
