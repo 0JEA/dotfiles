@@ -1,0 +1,378 @@
+;; ═══════════════════════════════════════════════════════════════════════════
+;; Widget panel — a right-edge rail toggled with Super+W.
+;;
+;; Companion to dunst, NOT a replacement for it. dunst stays the notification
+;; daemon (it draws the popups); this panel reads dunst's history over dunstctl
+;; and renders the notification centre. That split is why swaync is not
+;; installed: swaync's value is its own control centre, which this replaces.
+;;
+;; COST: every expensive poll is gated behind :run-while panel-open, so a closed
+;; panel runs nothing on a timer. Only the clock keeps ticking.
+;; ═══════════════════════════════════════════════════════════════════════════
+
+;; Gate for every :run-while below.
+;;
+;; A deflisten, NOT a defvar. `eww reload` resets defvars to their declared
+;; default, and eww reloads itself whenever a config file changes -- so a
+;; matugen run that rewrites colors.scss used to flip this back to false while
+;; the panel was still open, stopping every poll and freezing the visible panel
+;; at its :initial values. A deflisten is restarted by a reload instead, so the
+;; script re-reads the state file and the gate corrects itself. The state file
+;; panel.sh writes is the only copy of this state.
+(deflisten panel-open :initial "false"
+  "$HOME/.config/eww/scripts/panel-gate.sh")
+
+;; Which destructive power action is armed, if any ("" | "reboot" | "poweroff").
+;; Reboot and shut down are one mis-click apart in a 380px rail, and both used
+;; to fire systemctl immediately.
+(defvar pwr-arm "")
+
+;; ── Data sources ───────────────────────────────────────────────────────────
+;; :initial is MANDATORY on every one of these. Without it eww seeds a poll var
+;; with the empty STRING, and the first render then does field access on a
+;; string, which throws and blanks the entire widget tree rather than one card.
+;; Because run-while is false while the panel is shut, these initial values are
+;; also what renders for the first frame of every open, so each must be a
+;; complete, valid object.
+
+(defpoll clock-time :interval "10s" :initial "--:--" "date '+%H:%M'")
+(defpoll clock-date :interval "300s" :initial "" "date '+%A, %-d %B'")
+(defpoll uptime :interval "60s" :run-while panel-open :initial ""
+  "$HOME/.config/eww/scripts/sysinfo.sh uptime")
+
+(defpoll media :interval "1s" :run-while panel-open
+  :initial "{\"available\":false,\"status\":\"Stopped\",\"title\":\"\",\"artist\":\"\",\"album\":\"\",\"art\":\"\",\"position\":0,\"length\":0,\"progress\":0,\"pos_str\":\"0:00\",\"len_str\":\"0:00\",\"player\":\"\"}"
+  "$HOME/.config/eww/scripts/media.sh")
+
+(defpoll volume :interval "1s" :run-while panel-open
+  :initial "{\"sink\":0,\"sink_muted\":false,\"source\":0,\"source_muted\":false}"
+  "$HOME/.config/eww/scripts/volume.sh get")
+
+(defpoll bright :interval "2s" :run-while panel-open :initial "100"
+  "$HOME/.config/hypr/scripts/brightness.sh get")
+
+;; The monitor's own backlight over DDC/CI. The script answers from a cache and
+;; only asks the monitor every 20s (each ddcutil call takes ~0.7s), and `set`
+;; pushes the new value straight back, so this poll can stay slow.
+(defpoll monbright :interval "5s" :run-while panel-open :initial "100"
+  "$HOME/.config/eww/scripts/monitor-brightness.sh get")
+
+;; toggles.sh pushes the new state straight after a click; this poll only
+;; catches changes made elsewhere (e.g. running toggle-paper-shader.sh by hand).
+(defpoll toggles :interval "2s" :run-while panel-open
+  :initial "{\"dnd\":false,\"paper\":false}"
+  "$HOME/.config/eww/scripts/toggles.sh get")
+
+;; Read from Hyprland, so a config reload snapping the screen back to
+;; landscape shows up here as "off".
+(defpoll rotate :interval "2s" :run-while panel-open :initial "{\"portrait\":false}"
+  "$HOME/.config/eww/scripts/rotate.sh get")
+
+(defpoll gpu :interval "3s" :run-while panel-open
+  :initial "{\"available\":false,\"util\":0,\"mem_used\":0,\"mem_total\":0,\"mem_perc\":0,\"temp\":0,\"name\":\"\"}"
+  "$HOME/.config/eww/scripts/sysinfo.sh gpu")
+
+(defpoll net :interval "10s" :run-while panel-open
+  :initial "{\"connected\":false,\"type\":\"none\",\"name\":\"offline\",\"device\":\"\",\"icon\":\"\"}"
+  "$HOME/.config/eww/scripts/sysinfo.sh net")
+
+(defpoll notifs :interval "3s" :run-while panel-open :initial "[]"
+  "$HOME/.config/eww/scripts/notifications.sh list")
+
+;; The countdown fires via a detached background process, not eww, so this
+;; keeps ticking even while the panel is closed — otherwise closing the panel
+;; mid-countdown would freeze the displayed remaining time until reopened.
+(defpoll timer :interval "1s" :initial "{\"active\":false,\"remaining\":0,\"remaining_str\":\"\",\"label\":\"\"}"
+  "$HOME/.config/eww/scripts/timer.sh status")
+
+(defvar timer-minutes "5")
+(defvar timer-volume "70")
+
+;; ── Header ─────────────────────────────────────────────────────────────────
+
+(defwidget header []
+  (box :class "header" :orientation "h" :space-evenly false
+    (box :orientation "v" :space-evenly false :hexpand true :halign "start"
+      (label :class "clock" :halign "start" :text clock-time)
+      (label :class "date" :halign "start" :text clock-date)
+      (label :class "uptime" :halign "start" :text uptime))
+    ;; Lock is harmless and fires immediately. Reboot and shut down arm first
+    ;; and are confirmed in the row below, so no single click can end the
+    ;; session. The two destructive buttons are also separated from Lock.
+    (box :orientation "h" :space-evenly false :halign "end" :valign "start" :spacing 10
+      (button :class "pwr" :tooltip "Lock"
+              :onclick "$HOME/.config/eww/scripts/panel.sh close; hyprlock" "󰌾")
+      (button :class "pwr warn ${pwr-arm == "reboot" ? "armed" : ""}" :tooltip "Restart"
+              :onclick "eww update pwr-arm=${pwr-arm == "reboot" ? "''" : "reboot"}" "󰜉")
+      (button :class "pwr danger ${pwr-arm == "poweroff" ? "armed" : ""}" :tooltip "Shut down"
+              :onclick "eww update pwr-arm=${pwr-arm == "poweroff" ? "''" : "poweroff"}" "󰐥"))))
+
+(defwidget pwr-confirm []
+  (revealer :reveal {pwr-arm != ""} :transition "slidedown" :duration "160ms"
+    (box :class "card confirm ${pwr-arm == "poweroff" ? "danger" : "warn"}"
+         :orientation "h" :space-evenly false :spacing 10
+      (label :class "confirm-text" :halign "start" :hexpand true
+             :text {pwr-arm == "poweroff" ? "Shut down now?" : "Restart now?"})
+      (button :class "confirm-btn cancel" :onclick "eww update pwr-arm=''" "Cancel")
+      (button :class "confirm-btn go"
+              :onclick "$HOME/.config/eww/scripts/panel.sh close; systemctl ${pwr-arm}"
+              "Confirm"))))
+
+;; ── Media ──────────────────────────────────────────────────────────────────
+;; The whole card lives in a revealer so it collapses cleanly when no player is
+;; running, instead of leaving a 100px hole in the layout.
+
+(defwidget media-card []
+  (revealer :reveal {media.available} :transition "slidedown" :duration "250ms"
+    (box :class "card media" :orientation "v" :space-evenly false :spacing 10
+      (box :orientation "h" :space-evenly false :spacing 12
+        ;; The art path must ALWAYS resolve to a loadable file. eww builds this
+        ;; widget with Pixbuf::from_file_at_size(...)? — an empty path is a hard
+        ;; error that kills the widget, and it is evaluated even when hidden.
+        ;; placeholder.png is a 1x1 transparent pixel used purely as a safe
+        ;; fallback; the glyph underneath is what actually shows.
+        (box :class "art-wrap" :valign "center"
+          (overlay
+            (label :class "art-fallback" :text "󰎈")
+            ;; EWW_CONFIG_DIR, not "$HOME/...": this string is handed straight to
+            ;; GTK rather than to a shell, so a $HOME in it stays a literal
+            ;; dollar-H-O-M-E and the file open fails.
+            (image :class "art"
+                   :path {media.art != "" ? media.art : EWW_CONFIG_DIR + "/placeholder.png"}
+                   :image-width 64 :image-height 64
+                   :visible {media.art != ""})))
+        (box :orientation "v" :space-evenly false :hexpand true :valign "center" :spacing 2
+          (label :class "track" :halign "start" :xalign 0 :limit-width 26
+                 :truncate-left false :text {media.title})
+          (label :class "artist" :halign "start" :xalign 0 :limit-width 30
+                 :text {media.artist})))
+      (box :orientation "v" :space-evenly false :spacing 4
+        (progress :class "seek" :value {media.progress} :orientation "h")
+        (box :orientation "h" :space-evenly false
+          (label :class "time" :halign "start" :hexpand true :text {media.pos_str})
+          (label :class "time" :halign "end" :text {media.len_str})))
+      (box :class "controls" :orientation "h" :space-evenly false :halign "center" :spacing 18
+        (button :class "mctl" :onclick "playerctl previous" "󰒮")
+        (button :class "mctl play" :onclick "playerctl play-pause"
+                {media.status == "Playing" ? "󰏤" : "󰐊"})
+        (button :class "mctl" :onclick "playerctl next" "󰒭")))))
+
+;; ── Sliders ────────────────────────────────────────────────────────────────
+
+(defwidget slider-row [icon value onchange cls ?onclick ?tooltip]
+  (box :orientation "h" :space-evenly false :spacing 10 :tooltip {tooltip ?: ""}
+    (button :class "slider-icon ${cls}" :onclick {onclick ?: ""} icon)
+    ;; :max is 101 on purpose. eww's scale stops one step short of its max, so
+    ;; with 100 the far end of every slider was 99.
+    (scale :class "slider ${cls}" :hexpand true :value value :min 0 :max 101
+           :round-digits 0 :onchange onchange)
+    (label :class "slider-val" :text "${round(value, 0)}")))
+
+(defwidget sliders []
+  (box :class "card" :orientation "v" :space-evenly false :spacing 14
+    (slider-row :icon {volume.sink_muted ? "󰝟" : "󰕾"}
+                :cls {volume.sink_muted ? "muted" : ""}
+                :value {volume.sink}
+                :onclick "$HOME/.config/eww/scripts/volume.sh toggle-sink"
+                :onchange "$HOME/.config/eww/scripts/volume.sh set-sink {}")
+    (slider-row :icon {volume.source_muted ? "󰍭" : "󰍬"}
+                :cls {volume.source_muted ? "muted" : ""}
+                :value {volume.source}
+                :onclick "$HOME/.config/eww/scripts/volume.sh toggle-source"
+                :onchange "$HOME/.config/eww/scripts/volume.sh set-source {}")
+    ;; The monitor's real backlight, set over DDC/CI with ddcutil.
+    (slider-row :icon "󰍹" :cls "bright" :value monbright
+                :tooltip "Monitor brightness (the monitor's own setting)"
+                :onchange "$HOME/.config/eww/scripts/monitor-brightness.sh set {}")
+    ;; Not a backlight. This one dims the picture with Hyprland's screen
+    ;; shader, so it can go darker than the monitor's own minimum.
+    (slider-row :icon "󰃞" :cls "bright" :value bright
+                :tooltip "Screen dim (shader)"
+                :onchange "$HOME/.config/hypr/scripts/brightness.sh set {}")
+    ;; Lives with brightness because both are screen shaders sharing Hyprland's
+    ;; one screen_shader slot; brightness.sh composes the two when both are on.
+    (button :class "tile ${toggles.paper ? "on" : ""}"
+            :onclick "$HOME/.config/eww/scripts/toggles.sh paper"
+      (box :orientation "h" :space-evenly false :spacing 10
+        (label :class "tile-icon" :text "󰈙")
+        (label :class "tile-label" :halign "start" :hexpand true :text "Paper texture")
+        (label :class "tile-state" :text {toggles.paper ? "On" : "Off"})))
+    ;; Rotates the focused monitor for when it is physically turned on its stand.
+    (button :class "tile ${rotate.portrait ? "on" : ""}"
+            :onclick "$HOME/.config/eww/scripts/rotate.sh toggle"
+      (box :orientation "h" :space-evenly false :spacing 10
+        (label :class "tile-icon" :text "󰑵")
+        (label :class "tile-label" :halign "start" :hexpand true :text "Portrait screen")
+        (label :class "tile-state" :text {rotate.portrait ? "On" : "Off"})))))
+
+;; ── Timer ──────────────────────────────────────────────────────────────────
+
+(defwidget timer-card []
+  (box :class "card timer" :orientation "v" :space-evenly false :spacing 10
+    (box :class "section-head" :orientation "h" :space-evenly false
+      (label :class "section-title" :halign "start" :hexpand true :text "Timer"))
+    (box :visible {timer.active} :orientation "h" :space-evenly false :spacing 10
+      (label :class "timer-remaining" :halign "start" :hexpand true
+             :text "${timer.remaining_str}  ${timer.label}")
+      (button :class "tctl" :onclick "$HOME/.config/eww/scripts/timer.sh cancel" "󰝤"))
+    ;; A text `input` needs real keyboard focus to be typed into, and the panel
+    ;; window is :focusable false (Super+W must not steal focus from whatever
+    ;; you're typing in when it opens — see the window's comment below), and
+    ;; this eww build has no "ondemand" focus mode to grant it selectively. So
+    ;; the length is set with +/- stepper buttons and presets instead, which
+    ;; only need pointer input.
+    (box :visible {!timer.active} :orientation "v" :space-evenly false :spacing 10
+      (box :orientation "h" :space-evenly false :spacing 10
+        (button :class "tctl step" :onclick "eww update timer-minutes=$(( ${timer-minutes} > 1 ? ${timer-minutes} - 1 : 1 ))" "󰍴")
+        (label :class "timer-value" :text "${timer-minutes}")
+        (button :class "tctl step" :onclick "eww update timer-minutes=$(( ${timer-minutes} + 1 ))" "󰐖")
+        (label :class "timer-unit" :text "min")
+        (button :class "tctl start"
+                :onclick "$HOME/.config/eww/scripts/timer.sh start ${timer-minutes} 'Timer' ${timer-volume}"
+                "󰐊"))
+      (box :class "presets" :orientation "h" :space-evenly true :spacing 6
+        (for m in "[5, 10, 15, 30, 60]"
+          (button :class "preset"
+                  :onclick "$HOME/.config/eww/scripts/timer.sh start ${m} 'Timer' ${timer-volume}"
+                  "${m}")))
+      ;; Volume is baked into the alarm job at start time (see timer.sh), so
+      ;; this only affects the NEXT countdown, not one already running.
+      (slider-row :icon {timer-volume == 0 ? "󰝟" : "󰕾"} :cls "timer-vol"
+                  :value timer-volume
+                  :onchange "eww update timer-volume={}"))))
+
+;; ── System stats ───────────────────────────────────────────────────────────
+;; CPU / RAM / DISK come from eww's built-in magic vars rather than a script,
+;; so there is no extra process spawning on a timer for them.
+
+(defwidget stat-row [icon name value pct cls]
+  (box :orientation "h" :space-evenly false :spacing 10
+    (label :class "stat-icon ${cls}" :text icon)
+    (box :orientation "v" :space-evenly false :hexpand true :spacing 3
+      (box :orientation "h" :space-evenly false
+        (label :class "stat-name" :halign "start" :hexpand true :text name)
+        (label :class "stat-val" :halign "end" :text value))
+      (progress :class "bar ${cls}" :value pct :orientation "h"))))
+
+(defwidget stats []
+  (box :class "card" :orientation "v" :space-evenly false :spacing 12
+    (stat-row :icon "󰻠" :name "CPU" :cls "cpu"
+              :value "${round(EWW_CPU.avg, 0)}%"
+              :pct {EWW_CPU.avg})
+    (stat-row :icon "󰍛" :name "Memory" :cls "ram"
+              :value "${round(EWW_RAM.used_mem_perc, 0)}%"
+              :pct {EWW_RAM.used_mem_perc})
+    (stat-row :icon "󰋊" :name "Disk" :cls "disk"
+              :value "${round(EWW_DISK["/"].used_perc, 0)}%"
+              :pct {EWW_DISK["/"].used_perc})
+    (box :class "gpu-row" :orientation "h" :space-evenly false :spacing 10
+        :visible {gpu.available}
+      (label :class "stat-icon gpu" :text "󰢮")
+      (box :orientation "v" :space-evenly false :hexpand true :spacing 3
+        (box :orientation "h" :space-evenly false
+          (label :class "stat-name" :halign "start" :hexpand true :text "GPU")
+          (label :class "stat-val" :halign "end"
+                 :text "${gpu.util}%   ${gpu.temp}°C"))
+        (progress :class "bar gpu" :value {gpu.util} :orientation "h")))
+    (box :class "net-row" :orientation "h" :space-evenly false :spacing 10
+      (label :class "stat-icon net" :text {net.icon})
+      (label :class "net-name" :halign "start" :hexpand true :limit-width 28
+             :text {net.connected ? net.name : "Offline"}))))
+
+;; ── Notifications ──────────────────────────────────────────────────────────
+
+(defwidget notif-list []
+  (box :orientation "v" :space-evenly false :spacing 8
+    (box :class "section-head" :orientation "h" :space-evenly false
+      (label :class "section-title" :halign "start" :hexpand true :text "Notifications")
+      (button :class "clear-btn" :visible {arraylength(notifs) > 0}
+              :onclick "$HOME/.config/eww/scripts/notifications.sh clear"
+              "󰩹 Clear"))
+    (box :class "card empty" :visible {arraylength(notifs) == 0}
+      (label :class "empty-text" :text "Nothing waiting"))
+    (box :orientation "v" :space-evenly false :spacing 6
+      (for n in notifs
+        (box :class "card notif ${n.urgency == "CRITICAL" ? "critical" : ""}"
+             :orientation "v" :space-evenly false :spacing 2
+          (box :orientation "h" :space-evenly false
+            (label :class "notif-app" :halign "start" :hexpand true
+                   :limit-width 22 :text {n.app})
+            (label :class "notif-age" :halign "end" :text {n.age}))
+          ;; NO :limit-width here. limit-width wins over :wrap, so setting both
+          ;; ellipsised every notification to one line -- five Thunderbird rows
+          ;; all reading "...received 1 new mess..." and indistinguishable.
+          ;; Width is constrained by the rail itself, so wrap alone is enough.
+          ;; :truncate false is required as well as :wrap -- with truncate left
+          ;; at its default the label still ellipsised instead of wrapping, so
+          ;; long bodies stayed one clipped line even after :limit-width went.
+          (label :class "notif-summary" :halign "start" :xalign 0
+                 :wrap true :truncate false :text {n.summary})
+          (label :class "notif-body" :halign "start" :xalign 0
+                 :wrap true :truncate false
+                 :visible {n.body != ""} :text {n.body}))))))
+
+;; ── Root ───────────────────────────────────────────────────────────────────
+
+(defwidget panel-root []
+  (box :class "panel-root" :orientation "v" :space-evenly false
+    ;; Load-bearing, despite being invisible. eww only starts a deflisten that
+    ;; the WIDGET TREE references -- a variable used solely in a defpoll's
+    ;; :run-while is not enough, and panel-gate.sh was never spawned at all
+    ;; (verified: zero gate processes, panel-open stuck at its "false" initial).
+    ;; Referencing it here is what keeps the whole :run-while gate alive.
+    (label :visible false :text panel-open)
+    ;; vexpand, and NOT valign "start" -- valign stops the scroll filling the
+    ;; window and collapses it to nothing (rendered and checked). The scroll
+    ;; viewport fills; .panel-inner inside it keeps its natural height, which is
+    ;; what makes the painted surface stop where the content stops.
+    (scroll :vscroll true :hscroll false :vexpand true
+      ;; valign start belongs HERE, on the scroll's child, not on the scroll.
+      ;; A GTK viewport allocates its child the full viewport height unless the
+      ;; child aligns itself, which is why the painted surface still ran to the
+      ;; bottom of the rail with only the background moved.
+      (box :class "panel-inner" :valign "start" :orientation "v" :space-evenly false :spacing 16
+        (header)
+        (pwr-confirm)
+        (media-card)
+        (sliders)
+        (timer-card)
+        (stats)
+        (notif-list)))))
+
+;; ── Window ─────────────────────────────────────────────────────────────────
+;; :namespace is what the Hyprland layerrule matches on for the slide animation
+;; and blur. Without it the layer is named "eww-panel"-less and the rules
+;; silently do nothing.
+;;
+;; :focusable false — the panel takes pointer input (buttons and sliders work)
+;; but never steals keyboard focus, so typing is not interrupted by opening it.
+;; This build of eww only accepts true/false here — the gtk-layer-shell
+;; "ondemand" mode exists upstream but this binary rejects the string outright
+;; ("Failed to turn `ondemand` into a value of type bool"), so it can't be used
+;; to let just the timer's entry grab focus. The entry therefore does not
+;; accept keystrokes; the timer minutes are set via the +/- buttons instead.
+;;
+;; WIDTH: 380px. (DP-3 is 2560x1440 logical -- 4K at scale 1.5 -- not the
+;; 1920px this comment used to claim.) Tune this one number to taste.
+
+;; GEOMETRY: height is 95%, not 100%, and the anchor is a corner rather than
+;; "center right". waybar reserves an exclusive zone (28px tall at y=6), which
+;; shrinks the area layer-shell will position within. A 100%-height window is
+;; then TALLER than the space it is being centred in, so it is placed at y=17
+;; and hangs 17px off the bottom of the screen, silently clipping the last
+;; notification. Anchoring to a corner and leaving headroom avoids depending on
+;; how the compositor resolves that overflow.
+(defwindow panel
+  ;; A FALLBACK, not the normal path: panel.sh passes --screen with the focused
+  ;; connector, which overrides this, so Super+W opens the rail on the screen
+  ;; you are actually looking at rather than always on monitor 0. It has to stay
+  ;; here though -- with no :monitor at all, any open that does not pass
+  ;; --screen fails outright with "Failed to get primary monitor from GTK".
+  :monitor 0
+  :geometry (geometry :x "12px" :y "12px" :width "380px" :height "95%"
+                      :anchor "bottom right")
+  :stacking "overlay"
+  :namespace "eww-panel"
+  :exclusive false
+  :focusable false
+  (panel-root))

@@ -1,0 +1,554 @@
+// ═════════════════════════════════════════════════════════════════════════
+// Widget panel styling.
+//
+// Colour tokens come from colors.scss, which matugen generates from
+// theme/templates/eww-colors.scss.tera. Nothing in THIS file is generated, so
+// layout survives a re-theme. Never add colours here as literals: change the
+// palette in theme/matugen/config.toml and re-run theme/apply-theme.sh.
+//
+// This is GTK3 CSS, not web CSS. There is no flexbox and no grid (eww's boxes
+// do layout), selectors are GTK node names (`scale trough`, `progressbar
+// progress`), and a typo in a property is silently ignored rather than erroring.
+// ═════════════════════════════════════════════════════════════════════════
+
+@import "colors";
+
+// DERIVED token, not a literal -- it follows the palette like everything else.
+//
+// $comment (#565f89) on the card background (#1d2131 composited) measures
+// 2.58:1, well under the WCAG AA floor of 4.5:1, and it was the colour of
+// fourteen different pieces of text including every notification body and
+// tile label. Measured from a rendered screenshot, not eyeballed. This mix
+// lands at 5.39:1 while staying clearly secondary against $fg's 9.90:1.
+$muted: mix($fg, $comment, 50%);
+
+* {
+  all: unset;
+  font-family: "JetBrainsMono Nerd Font";
+  font-size: 13px;
+}
+
+// Belt and braces. Transparency already composites correctly here without this
+// rule (verified by probing .panel-root with a bright translucent colour and
+// seeing the blurred wallpaper through it), but the GTK theme in play is what
+// decides whether the toplevel paints an opaque background, and that is not
+// this config's to control. Stating it explicitly keeps the rail translucent if
+// the system GTK theme ever changes.
+window {
+  background-color: transparent;
+}
+
+// The rail FLOATS rather than filling the screen edge-to-edge, for two reasons:
+//   1. waybar is a "top" layer at y=6 with height 28 and a 12px side margin.
+//      A full-height overlay sits above it and hides the right-hand modules.
+//      The 40px top margin clears waybar entirely.
+//   2. The 12px side/bottom margin matches waybar's own margin, so the panel
+//      reads as part of the same floating-pill system instead of a slab bolted
+//      onto the edge.
+//
+// The layer-shell surface itself stays transparent; this box is the visible
+// surface, which is also what Hyprland's `ignorealpha` blur rule keys off.
+.panel-root {
+  // No margins here: the window geometry in eww.yuck already insets the rail
+  // (x/y 12px, height 95%). Doing it in both places double-insets the panel and
+  // makes the real on-screen size hard to reason about.
+  // Expect this to LOOK opaque, and do not "fix" it by dropping the alpha
+  // further. $bg is #151111, so 76% of a near-black over an already-dark
+  // blurred backdrop is still near-black — the glass reads as depth rather than
+  // as visible wallpaper. The blur genuinely is working underneath (proven by
+  // temporarily swapping this for a bright translucent colour, which showed the
+  // wallpaper clearly softened). Going much below this starts to cost legibility
+  // on the 10-11px notification text for very little visible gain.
+  // The glass surface moved to .panel-inner. The WINDOW is a fixed 95% height
+  // (eww's geometry height is authoritative -- asking for a content-sized
+  // window by shrinking it just collapses the rail to a sliver, verified by
+  // rendering one at 1px). So with nothing playing and no notifications, ~600px
+  // of the 1368px rail was painted glass containing nothing. Painting the inner
+  // box instead means the visible surface ends where the content ends, while
+  // the window stays tall enough to scroll when there IS a lot to show.
+  background-color: transparent;
+  color: $fg;
+}
+
+.panel-inner {
+  padding: 20px 16px 24px 16px;
+  color: $fg;
+  // 0.85, not 0.76. The contrast figures for the secondary text were measured
+  // against a BLACK backdrop; these surfaces are translucent, so the real ratio
+  // moves with the wallpaper. Composited over white -- the worst case -- the old
+  // 0.76/0.66 pair put $muted at 4.02:1, under the 4.5 floor. 0.85/0.75 is the
+  // least opaque pair that clears it (4.58:1 worst case, 5.20:1 over black), so
+  // the glass keeps as much depth as the text can afford.
+  background-color: rgba($bg, 0.85);
+  border: 1px solid rgba($fg, 0.06);
+  border-radius: 18px;
+}
+
+// ── Cards ────────────────────────────────────────────────────────────────
+// One surface treatment, reused everywhere. Restraint on purpose: a single
+// card colour and a single radius, with the accent used only for state.
+.card {
+  background-color: rgba($bg_hl, 0.75);  // see .panel-inner: worst-case contrast
+  border: 1px solid rgba($fg, 0.05);
+  border-radius: 14px;
+  padding: 14px;
+}
+
+// ── Header ───────────────────────────────────────────────────────────────
+.header {
+  padding: 0 2px 2px 2px;
+}
+
+.clock {
+  font-size: 34px;
+  font-weight: 600;
+  color: $fg;
+}
+
+.date {
+  font-size: 13px;
+  color: $blue;
+  margin-top: -2px;
+}
+
+.uptime {
+  font-size: 11px;
+  color: $muted;
+  margin-top: 4px;
+}
+
+.pwr {
+  // 17px, not 15px: these were the smallest and lowest-contrast controls in
+  // the panel while being the only destructive ones.
+  font-size: 17px;
+  color: $muted;
+  padding: 7px 9px;
+  border-radius: 10px;
+  transition: background-color 140ms ease, color 140ms ease;
+
+  &:hover {
+    background-color: rgba($fg, 0.08);
+    color: $fg;
+  }
+
+  // Destructive actions are tinted AT REST, not only on hover -- hover styling
+  // cannot warn you about a button before you reach it.
+  &.warn   { color: $yellow; }
+  &.danger { color: $red; }
+
+  &.warn:hover {
+    background-color: rgba($yellow, 0.18);
+    color: $yellow;
+  }
+
+  &.danger:hover {
+    background-color: rgba($red, 0.18);
+    color: $red;
+  }
+
+  // Armed: the click landed and the confirm row is showing.
+  &.armed {
+    background-color: rgba($red, 0.22);
+    color: $red;
+  }
+
+  &.warn.armed {
+    background-color: rgba($yellow, 0.22);
+    color: $yellow;
+  }
+}
+
+// ── Power confirmation ───────────────────────────────────────────────────
+// Reboot and shut down no longer fire on a single click. They arm, and this
+// row confirms. Both sat one mis-click apart in a 380px rail and ran
+// systemctl immediately.
+.confirm {
+  border-width: 1px;
+  border-style: solid;
+
+  &.danger { border-color: rgba($red, 0.45); }
+  &.warn   { border-color: rgba($yellow, 0.45); }
+}
+
+.confirm-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: $fg;
+}
+
+.confirm-btn {
+  font-size: 11px;
+  padding: 6px 12px;
+  border-radius: 9px;
+  transition: background-color 140ms ease, color 140ms ease;
+
+  &.cancel {
+    color: $muted;
+    &:hover { background-color: rgba($fg, 0.10); color: $fg; }
+  }
+
+  &.go {
+    color: $red;
+    background-color: rgba($red, 0.16);
+    &:hover { background-color: rgba($red, 0.30); color: $fg; }
+  }
+}
+
+// ── Media ────────────────────────────────────────────────────────────────
+.art-wrap {
+  min-width: 64px;
+  min-height: 64px;
+  border-radius: 10px;
+  background-color: rgba($fg, 0.05);
+}
+
+.art {
+  border-radius: 10px;
+}
+
+.art-fallback {
+  font-size: 26px;
+  color: rgba($fg, 0.25);
+}
+
+.track {
+  font-size: 14px;
+  font-weight: 600;
+  color: $fg;
+}
+
+.artist {
+  font-size: 12px;
+  color: $muted;
+}
+
+.time {
+  font-size: 10px;
+  color: $muted;
+}
+
+.mctl {
+  font-size: 17px;
+  color: $fg_light;
+  padding: 6px 10px;
+  border-radius: 999px;
+  transition: color 140ms ease, background-color 140ms ease;
+
+  &:hover {
+    color: $blue;
+    background-color: rgba($blue, 0.12);
+  }
+
+  &.play {
+    font-size: 21px;
+    color: $blue;
+  }
+}
+
+// GTK progressbar is two nodes: the groove (trough) and the fill (progress).
+// Styling `progressbar` alone does nothing visible.
+progressbar {
+  &.seek {
+    trough {
+      background-color: rgba($fg, 0.10);
+      border-radius: 999px;
+      min-height: 4px;
+    }
+
+    progress {
+      background-color: $blue;
+      border-radius: 999px;
+      min-height: 4px;
+    }
+  }
+}
+
+// ── Sliders ──────────────────────────────────────────────────────────────
+.slider-icon {
+  font-size: 15px;
+  color: $blue;
+  min-width: 22px;
+  padding: 2px;
+  transition: color 140ms ease;
+
+  &.muted {
+    color: $red;
+  }
+
+  &.bright {
+    color: $yellow;
+  }
+
+  &:hover {
+    color: $fg;
+  }
+}
+
+// Full-width on/off row under the sliders. Accent only when on.
+.tile {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background-color: rgba($fg, 0.05);
+  transition: background-color 140ms ease;
+
+  .tile-icon {
+    font-size: 15px;
+    color: $muted;
+    min-width: 22px;
+  }
+
+  .tile-label {
+    color: $fg;
+  }
+
+  .tile-state {
+    font-size: 11px;
+    color: $muted;
+  }
+
+  &:hover {
+    background-color: rgba($fg, 0.09);
+  }
+
+  &.on {
+    background-color: rgba($yellow, 0.14);
+
+    .tile-icon,
+    .tile-state {
+      color: $yellow;
+    }
+  }
+}
+
+.slider-val {
+  font-size: 11px;
+  color: $muted;
+  min-width: 30px;
+}
+
+scale.slider {
+  trough {
+    background-color: rgba($fg, 0.10);
+    border-radius: 999px;
+    min-height: 5px;
+  }
+
+  highlight {
+    background-color: $blue;
+    border-radius: 999px;
+    min-height: 5px;
+  }
+
+  slider {
+    background-color: $fg;
+    border-radius: 999px;
+    min-width: 12px;
+    min-height: 12px;
+    margin: -5px;
+    transition: background-color 140ms ease;
+  }
+
+  &.muted highlight {
+    background-color: $red;
+  }
+
+  &.bright highlight {
+    background-color: $yellow;
+  }
+
+  &.bright slider:hover {
+    background-color: $yellow;
+  }
+
+  &:hover slider {
+    background-color: $blue;
+  }
+}
+
+// ── Stats ────────────────────────────────────────────────────────────────
+.stat-icon {
+  font-size: 15px;
+  min-width: 20px;
+  color: $muted;
+
+  &.cpu  { color: $blue; }
+  &.ram  { color: $cyan; }
+  &.disk { color: $magenta; }
+  &.gpu  { color: $green; }
+  &.net  { color: $green; }
+}
+
+.stat-name {
+  font-size: 12px;
+  color: $fg_light;
+}
+
+.stat-val {
+  font-size: 11px;
+  color: $muted;
+}
+
+.net-name {
+  font-size: 12px;
+  color: $fg_light;
+}
+
+progressbar.bar {
+  trough {
+    background-color: rgba($fg, 0.08);
+    border-radius: 999px;
+    min-height: 3px;
+  }
+
+  progress {
+    border-radius: 999px;
+    min-height: 3px;
+    background-color: $blue;
+  }
+
+  &.ram progress  { background-color: $cyan; }
+  &.disk progress { background-color: $magenta; }
+  &.gpu progress  { background-color: $green; }
+}
+
+// ── Notifications ────────────────────────────────────────────────────────
+.section-head {
+  padding: 0 4px;
+}
+
+.section-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: $fg_light;
+}
+
+.clear-btn {
+  font-size: 11px;
+  color: $muted;
+  padding: 4px 9px;
+  border-radius: 8px;
+  transition: background-color 140ms ease, color 140ms ease;
+
+  &:hover {
+    background-color: rgba($red, 0.14);
+    color: $red;
+  }
+}
+
+.empty {
+  padding: 18px;
+}
+
+.empty-text {
+  font-size: 11px;
+  color: rgba($fg, 0.28);
+}
+
+// ── Timer ────────────────────────────────────────────────────────────────
+.timer-remaining {
+  font-size: 18px;
+  font-weight: 600;
+  color: $fg;
+}
+
+.timer-unit {
+  font-size: 11px;
+  color: $muted;
+}
+
+entry.timer-input {
+  font-size: 14px;
+  color: $fg;
+  background-color: rgba($fg, 0.06);
+  border: 1px solid rgba($fg, 0.08);
+  border-radius: 8px;
+  padding: 4px 8px;
+}
+
+.presets {
+  padding: 0 2px;
+}
+
+.preset {
+  font-size: 12px;
+  color: $muted;
+  padding: 6px 0;
+  border-radius: 8px;
+  background-color: rgba($fg, 0.05);
+  transition: color 140ms ease, background-color 140ms ease;
+
+  &:hover {
+    color: $blue;
+    background-color: rgba($blue, 0.14);
+  }
+}
+
+.tctl {
+  font-size: 16px;
+  color: $muted;
+  padding: 6px 10px;
+  border-radius: 999px;
+  transition: color 140ms ease, background-color 140ms ease;
+
+  &:hover {
+    color: $red;
+    background-color: rgba($red, 0.14);
+  }
+
+  &.start {
+    color: $blue;
+
+    &:hover {
+      color: $blue;
+      background-color: rgba($blue, 0.14);
+    }
+  }
+}
+
+.notif {
+  padding: 11px 12px;
+
+  // A left hairline rather than a filled background: critical notifications
+  // need to be findable, not to shout over the rest of the panel.
+  &.critical {
+    border-left: 2px solid $red;
+  }
+}
+
+.notif-app {
+  font-size: 10px;
+  color: $blue;
+}
+
+.notif-age {
+  font-size: 10px;
+  color: $muted;
+}
+
+.notif-summary {
+  font-size: 12px;
+  font-weight: 600;
+  color: $fg;
+  margin-top: 3px;
+}
+
+.notif-body {
+  font-size: 11px;
+  color: $muted;
+  margin-top: 2px;
+}
+
+// ── Scrollbar ────────────────────────────────────────────────────────────
+scrollbar {
+  background-color: transparent;
+
+  slider {
+    background-color: rgba($fg, 0.14);
+    border-radius: 999px;
+    min-width: 4px;
+
+    &:hover {
+      background-color: rgba($fg, 0.26);
+    }
+  }
+}
