@@ -90,6 +90,20 @@ return {
         c.info = p.cyan
         c.hint = p.green
       end,
+
+      -- ── Highlight overrides ─────────────────────────────────────────────
+      -- Runs after on_colors, and `c` is the already-remapped table above, so
+      -- these follow a palette switch for free with no second require and no
+      -- hardcoded hex.
+      --
+      -- ColorColumn marks clang-format's 80-column ColumnLimit. Stock
+      -- tokyonight picks a cool grey that reads as a bruise against the warm
+      -- palette. fg_gutter (gray2) is the dimmest slot that still separates
+      -- from both bg and bg_hl, so the rule stays visible on the cursorline
+      -- row without competing with the text.
+      on_highlights = function(hl, c)
+        hl.ColorColumn = { bg = c.fg_gutter }
+      end,
     },
     config = function(_, opts)
       require("tokyonight").setup(opts)

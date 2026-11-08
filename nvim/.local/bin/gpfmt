@@ -1,0 +1,1538 @@
+#!/usr/bin/env python3
+r"""gpfmt -- a formatter for PARI/GP (.gp) source.
+
+Reads GP source on stdin, writes formatted source on stdout.
+
+Indentation follows the same rule clang-format uses for C in this config:
+a `{` block indents by two, and anything left open inside brackets ALIGNS to
+the column just after the opening bracket.
+
+    f(n) = {
+      my(x = foo(1,
+                 2));
+    }
+
+Every grammar rule below was verified against gp 2.17 before this was written:
+
+  * Inside a { ... } block a newline is plain whitespace, so a long line may
+    be broken between tokens.
+  * OUTSIDE braces a newline TERMINATES the statement, even with parentheses
+    still open -- `print(1 +\n2)` is a syntax error, unlike C.  Long top-level
+    lines therefore cannot be wrapped without changing meaning, and are left
+    exactly as they are.  Neovim flags them instead.
+  * `\\` starts a line comment, but not inside a string literal.
+  * `/* ... */` block comments span lines.
+  * `\` alone is integer division, so the two-character `\\` must be matched
+    first.
+  * `'x` is a quoted variable, NOT a string delimiter.
+
+It also normalises token spacing (`a=b` -> `a = b`, `f(x,y)` -> `f(x, y)`) and
+puts one statement per line inside a { } block. Statement splitting is NOT done
+at top level: `my(x=1); print(x)` prints 1, but split across two lines it prints
+the symbol `x`, because a newline ends the statement and drops my() scope. That
+is a silent wrong answer, not an error, so the split stops at the brace.
+
+The formatter only ever changes whitespace.  It never joins lines, never
+reorders statements, never inserts or removes a token.  Run it twice and the
+output is identical.
+"""
+
+import difflib
+import re
+import pathlib
+import sys
+
+INDENT = 2
+# Where the brace of a function body goes. "same-line" gives `f(x) = {`, the
+# C/clang-format convention; "next-line" gives `f(x) =` then `{`, which is what
+# PARI's own corpus uses (297 to 0). Override with --brace-style or a .gpfmt.
+BRACE_STYLE = "same-line"
+LIMIT = 80          # PARI's own guide: "no line should be longer than 80 characters"
+OPENERS = "([{"
+CLOSERS = ")]}"
+LINE_COMMENT = "\\\\"
+
+
+def leading_closers(text):
+    n = 0
+    for ch in text:
+        if ch in CLOSERS:
+            n += 1
+        else:
+            break
+    return n
+
+
+def indent_from(stack, closers):
+    """Indent for a line that opens with `closers` closing brackets."""
+    return stack[max(0, len(stack) - 1 - closers)]
+
+
+def scan(stripped, indent, stack, brace_depth):
+    """Walk one line's code, updating the alignment stack.
+
+    Returns (code_end, breaks, brace_depth) where `breaks` are the points at
+    which a newline may legally be inserted, each with the stack that would be
+    in force on the continuation line.
+    """
+    code_end = len(stripped)
+    breaks = []
+    i, n = 0, len(stripped)
+    in_string = False
+
+    while i < n:
+        two = stripped[i:i + 2]
+        c = stripped[i]
+
+        if in_string:
+            if c == "\\":
+                i += 2
+                continue
+            if c == '"':
+                in_string = False
+            i += 1
+            continue
+
+        if two == LINE_COMMENT:     # must beat the `\` division operator
+            code_end = i
+            break
+        if two == "/*":
+            end = stripped.find("*/", i + 2)
+            i = n if end == -1 else end + 2
+            continue
+        if c == '"':
+            in_string = True
+            i += 1
+            continue
+
+        if c in OPENERS:
+            if c == "{":
+                brace_depth += 1
+            # Block indent, one level per open bracket. Not alignment under the
+            # bracket: alignment hides nesting (everything collapses into a run
+            # of `)));`), drifts rightward until nothing fits, and disagrees
+            # with how `render` explodes a group. Prettier, Black and rustfmt
+            # all made the same choice, and rustfmt says why: smaller diffs.
+            stack.append(stack[-1] + INDENT)
+            # NB: no break point after an opener. Breaking there would move
+            # the rest of the line off it, flipping the align/hang choice
+            # above and making the formatter non-idempotent.
+        elif c in CLOSERS:
+            if c == "}":
+                brace_depth = max(0, brace_depth - 1)
+            if len(stack) > 1:
+                stack.pop()
+        elif c in ",;" and brace_depth >= 1:
+            breaks.append((i + 1, tuple(stack)))
+        elif brace_depth >= 1 and stripped[i:i + 2] in ("&&", "||"):
+            # a long boolean chain reads better broken at its connectives
+            breaks.append((i + 2, tuple(stack)))
+
+        i += 1
+
+    return code_end, breaks, brace_depth
+
+
+def line_states(raw_lines):
+    """For every line: is it INSIDE a string / block comment at its start?
+
+    One authoritative lexer pass. The line-oriented layer below must not
+    re-derive this with `rfind("/*")` or a per-line string flag: a `/*` inside
+    a string literal, or a string spanning lines, desynchronises it and the
+    formatter then rewrites the interior of a literal or drops indentation for
+    the rest of the file.
+    """
+    states = []
+    in_string = in_block = False
+
+    for raw in raw_lines:
+        states.append((in_string, in_block))
+        i, n = 0, len(raw)
+        while i < n:
+            two, c = raw[i:i + 2], raw[i]
+            if in_block:
+                if two == "*/":
+                    in_block = False
+                    i += 2
+                else:
+                    i += 1
+            elif in_string:
+                if c == "\\":
+                    i += 2
+                else:
+                    if c == '"':
+                        in_string = False
+                    i += 1
+            elif two == LINE_COMMENT:
+                break                      # comment runs to end of line
+            elif two == "/*":
+                in_block = True
+                i += 2
+            elif c == '"':
+                in_string = True
+                i += 1
+            else:
+                i += 1
+    return states
+
+
+def reflow_comment(pad, body):
+    """Hard-wrap a whole-line `\\` comment at the column limit."""
+    words = body.split()
+    if not words:
+        return [pad + LINE_COMMENT]
+    prefix = pad + LINE_COMMENT + " "
+    out, cur = [], prefix + words[0]
+    for word in words[1:]:
+        if len(cur) + 1 + len(word) <= LIMIT:
+            cur += " " + word
+        else:
+            out.append(cur)
+            cur = prefix + word
+    out.append(cur)
+    return out
+
+
+def _spans(text):
+    """Index -> True when that character is inside a string or comment."""
+    masked = [False] * len(text)
+    i, n = 0, len(text)
+    in_str = in_blk = False
+    while i < n:
+        two, c = text[i:i + 2], text[i]
+        if in_blk:
+            masked[i] = True
+            if two == "*/":
+                masked[i + 1] = True
+                i += 2
+                in_blk = False
+                continue
+            i += 1
+        elif in_str:
+            masked[i] = True
+            if c == "\\" and i + 1 < n:
+                masked[i + 1] = True
+                i += 2
+                continue
+            if c == '"':
+                in_str = False
+            i += 1
+        elif two == LINE_COMMENT:
+            for j in range(i, n):
+                masked[j] = True
+            break
+        elif two == "/*":
+            in_blk = True
+            masked[i] = masked[i + 1] = True
+            i += 2
+        elif c == '"':
+            in_str = True
+            masked[i] = True
+            i += 1
+        else:
+            i += 1
+    return masked
+
+
+def _find_group(text):
+    """Outermost bracket group: (open_index, close_index) or None.
+
+    Picks the group that leaves the least text outside it, i.e. the one worth
+    exploding. Brackets inside strings and comments are ignored.
+    """
+    masked = _spans(text)
+    best = None
+    depth = 0
+    start = -1
+    for i, c in enumerate(text):
+        if masked[i]:
+            continue
+        if c in OPENERS:
+            if depth == 0:
+                start = i
+            depth += 1
+        elif c in CLOSERS:
+            depth -= 1
+            if depth == 0 and start >= 0:
+                if best is None or (i - start) > (best[1] - best[0]):
+                    best = (start, i)
+            if depth < 0:
+                depth = 0
+    return best
+
+
+def _split_items(inner):
+    """Split a bracket group's contents at its own top-level `,` and `;`.
+
+    Each item keeps the separator that followed it, so re-joining is exact.
+    """
+    masked = _spans(inner)
+    items, depth, last = [], 0, 0
+    for i, c in enumerate(inner):
+        if masked[i]:
+            continue
+        if c in OPENERS:
+            depth += 1
+        elif c in CLOSERS:
+            depth -= 1
+        elif c in ",;" and depth == 0:
+            items.append(inner[last:i + 1])
+            last = i + 1
+    rest = inner[last:]
+    if rest.strip():
+        items.append(rest)
+    return [it for it in items if it.strip()]
+
+
+def render(text, indent):
+    """Lay out one logical line, exploding brackets only as far as needed."""
+    text = text.strip()
+
+    # A long boolean chain always goes one clause per line, even when it would
+    # fit: the clauses are what a reader checks one at a time, and it keeps the
+    # diff to a single line when one of them changes.
+    clauses = _split_bool(text)
+    if len(clauses) >= BOOL_CHAIN_MIN:
+        out = []
+        for clause in clauses:
+            out.extend(line.rstrip() for line in render(clause.strip(), indent))
+        return out
+
+    if indent + len(text) <= LIMIT:
+        return [" " * indent + text]
+
+    parts = _split_operators(text)
+    if len(parts) > 1:
+        out = []
+        for part in parts:
+            out.extend(line.rstrip() for line in render(part.strip(), indent))
+        if max(len(line) for line in out) < len(" " * indent + text):
+            return out
+
+    group = _find_group(text)
+    if group is None:
+        return [" " * indent + text]            # nothing breakable
+
+    # Descend past groups holding a single item: exploding `my(` around one
+    # argument adds a nesting level that shows nothing. Break the group that
+    # actually has parts, keeping the heads on the opening line.
+    op, cl = group
+    descents = 0
+    while True:
+        inner = text[op + 1:cl]
+        items = _split_items(inner)
+        if len(items) != 1:
+            break
+        if len(_split_operators(inner)) > 1:
+            break               # break at its connectives instead
+        nested = _find_group(inner)
+        if nested is None:
+            break
+        op, cl = op + 1 + nested[0], op + 1 + nested[1]
+        descents += 1           # the skipped bracket is still open on this line
+
+    head, inner, tail = text[:op + 1], text[op + 1:cl], text[cl:]
+    items = _split_items(inner)
+    if len(items) == 1:
+        ops = _split_operators(inner)
+        if len(ops) > 1:
+            items = ops
+    if not items:
+        return [" " * indent + text]
+
+    lines = []
+    cur = " " * indent + head.strip()
+    # One level per OPEN bracket, including the single-item groups we descended
+    # past -- the indentexpr in Neovim counts brackets, and the two must agree.
+    body_indent = indent + INDENT * (1 + descents)
+
+    # A `;` makes an item a STATEMENT rather than an argument. Once a group has
+    # to break, every statement in it gets its own line: filling the opener
+    # line with the first two and leaving the rest below hides where the body
+    # starts. Header arguments (which end in `,`) still ride with the opener.
+    body_started = False
+    for item in items:
+        item = item.strip()
+        if item.endswith(";"):
+            body_started = True
+
+        if not body_started:
+            # Arguments pack onto as few lines as fit, on the opener line and
+            # on continuations alike; a lone argument below a half-empty line
+            # is a break that buys nothing.
+            base = cur if cur.strip() else " " * body_indent
+            sep = "" if (base.endswith(tuple(OPENERS)) or not cur.strip()) else " "
+            candidate = base + sep + item
+            if len(candidate) <= LIMIT:
+                cur = candidate
+                continue
+
+        if cur.strip():
+            lines.append(cur.rstrip())
+            cur = ""
+        rendered = render(item, body_indent)
+        if body_started or len(rendered) > 1:
+            lines.extend(rendered)          # statements never share a line
+            cur = ""
+        else:
+            cur = rendered[0]               # keep packing arguments
+
+    if cur.strip():
+        lines.append(cur.rstrip())
+
+    # the closing bracket lines up with the line that opened it
+    lines.append(" " * indent + tail.strip())
+
+    # Only explode when it actually helps: exploding must leave fewer lines
+    # still over the limit. Wrapping one un-splittable argument in `head(` /
+    # `)` adds two lines and fixes nothing.
+    single = " " * indent + text
+    over_single = 1 if len(single) > LIMIT else 0
+    over_exploded = sum(1 for line in lines if len(line) > LIMIT)
+    if over_exploded >= over_single:
+        return [single]
+    return lines
+
+
+def _split_statements(text):
+    """Split at `;` that are not inside any bracket. Separators are kept."""
+    m = _spans(text)
+    out, depth, last = [], 0, 0
+    for i, c in enumerate(text):
+        if m[i]:
+            continue
+        if c in OPENERS:
+            depth += 1
+        elif c in CLOSERS:
+            depth -= 1
+        elif c == ";" and depth == 0:
+            out.append(text[last:i + 1])
+            last = i + 1
+    rest = text[last:]
+    if rest.strip():
+        stripped_rest = rest.strip()
+        if out and stripped_rest.startswith(("\\\\", "/*")):
+            out[-1] = out[-1] + rest        # a trailing comment stays attached
+        else:
+            out.append(rest)
+    return [x for x in out if x.strip()]
+
+
+BOOL_CHAIN_MIN = 3      # break a && / || chain this long onto separate lines
+
+
+def _split_bool(text):
+    """Split at top-level `&&` / `||` only, keeping the operator on the left."""
+    m = _spans(text)
+    out, depth, last, i = [], 0, 0, 0
+    while i < len(text):
+        if m[i]:
+            i += 1
+            continue
+        c = text[i]
+        if c in OPENERS:
+            depth += 1
+        elif c in CLOSERS:
+            depth -= 1
+        elif depth == 0 and text[i:i + 2] in ("&&", "||"):
+            out.append(text[last:i + 2])
+            last = i + 2
+            i += 2
+            continue
+        i += 1
+    rest = text[last:]
+    if rest.strip():
+        out.append(rest)
+    return [x for x in out if x.strip()]
+
+
+def _split_operators(text):
+    """Split at top-level `&&` / `||`, keeping the operator on the left.
+
+    A long boolean chain reads far better broken at its connectives than by
+    exploding whichever inner call happens to sit near the column limit.
+    """
+    m = _spans(text)
+    out, depth, last = [], 0, 0
+    i = 0
+    while i < len(text):
+        if m[i]:
+            i += 1
+            continue
+        c = text[i]
+        if c in OPENERS:
+            depth += 1
+        elif c in CLOSERS:
+            depth -= 1
+        elif depth == 0 and text[i:i + 2] in ("&&", "||"):
+            out.append(text[last:i + 2])
+            last = i + 2
+            i += 2
+            continue
+        elif (depth == 0 and c in "+-" and i > 0
+              and text[i - 1] == " " and text[i + 1:i + 2] == " "):
+            out.append(text[last:i + 1])    # binary +/-, spaces on both sides
+            last = i + 1
+            i += 1
+            continue
+        i += 1
+    rest = text[last:]
+    if rest.strip():
+        out.append(rest)
+    return [x for x in out if x.strip()]
+
+
+def render_top_level(text, indent):
+    r"""Lay out a top-level line, using `\` end-of-line continuations.
+
+    Outside `{ }` a bare newline ends the statement, which is why this used to
+    be left alone. GP has an end-of-line `\` continuation that joins the lines
+    back into one seq, preserving my()/local() scope and a function body's
+    extent -- verified against gp. So a top-level line CAN be broken, provided
+    every line but the last ends in ` \`.
+    """
+    global LIMIT
+    text = text.strip()
+    # One statement per line, the same rule as inside a { } block -- not only
+    # when the line is too wide.
+    if indent + len(text) <= LIMIT and len(_split_statements(text)) <= 1:
+        return [" " * indent + text]
+
+    full, LIMIT = LIMIT, LIMIT - 2       # every line but the last gains " \\"
+    try:
+        statements = _split_statements(text)
+        if len(statements) > 1:
+            # continuation statements sit one level in, so the run of `\`
+            # lines reads as one logical statement
+            out = []
+            for i, st in enumerate(statements):
+                out.extend(render(st.strip(),
+                                  indent if i == 0 else indent + INDENT))
+        else:
+            out = render(text, indent)      # break inside its brackets
+    finally:
+        LIMIT = full
+
+    if len(out) == 1:
+        return out
+
+    # A multi-line function body is braced. That is how PARI itself writes it
+    # (352 braces vs 2 continuations in the lead developer's own corpus, and
+    # zero real continuations in PARI's examples/). The braces are purely a
+    # line-continuation device -- gp's parser deletes the characters -- so
+    # adding them cannot change behaviour.
+    definition = re.match(r"\s*([A-Za-z_]\w*\s*\([^()]*\)\s*=(?!=))(.*)$", text, re.S)
+    if definition:
+        head, body = definition.group(1).strip(), definition.group(2).strip()
+        statements = _split_statements(body)
+        if BRACE_STYLE == "same-line":
+            lines = [" " * indent + head + " {"]
+        else:
+            lines = [" " * indent + head, " " * indent + "{"]
+        for st in statements:
+            lines.extend(render(st.strip(), indent + INDENT))
+        lines.append(" " * indent + "}")
+        if all(len(l) <= LIMIT for l in lines):
+            return lines
+
+    # Any other multi-line top-level statement gets a brace block too: braces
+    # are how PARI carries a statement across lines (352 of them vs 2 real
+    # continuations in its lead developer's corpus), and the parser deletes
+    # the characters, so it cannot change behaviour. Only possible when the
+    # statement has no braces of its own, since GP cannot nest them.
+    if "{" not in text and "}" not in text:
+        inner = []
+        for st in _split_statements(text):
+            inner.extend(render(st.strip(), indent + INDENT))
+        block = [" " * indent + "{"] + inner + [" " * indent + "}"]
+        if all(len(l) <= LIMIT for l in block):
+            return block
+
+
+    # Not a function definition: fall back to `\` continuations, the only
+    # other way to carry a top-level statement across lines.
+    joined = []
+    for line in out[:-1]:
+        if _ends_with_line_comment(line) or line.rstrip().endswith("\\"):
+            return [" " * indent + text]        # cannot break safely
+        joined.append(line.rstrip() + " \\")
+    joined.append(out[-1])
+    return joined
+
+
+def _comment_start(line, in_string, in_block):
+    """Index of the `\\` opening a comment on this line, or None.
+
+    Mirrors the lexer in line_states: a `\\` inside a string literal or a
+    block comment does not start a comment.
+    """
+    i, n = 0, len(line)
+    while i < n:
+        two, c = line[i:i + 2], line[i]
+        if in_block:
+            if two == "*/":
+                in_block = False
+                i += 2
+            else:
+                i += 1
+        elif in_string:
+            if c == "\\":
+                i += 2
+            else:
+                if c == '"':
+                    in_string = False
+                i += 1
+        elif two == LINE_COMMENT:
+            return i
+        elif two == "/*":
+            in_block = True
+            i += 2
+        elif c == '"':
+            in_string = True
+            i += 1
+        else:
+            i += 1
+    return None
+
+
+def _comment_runs(lines):
+    """Runs of two or more consecutive `code \\ comment` lines.
+
+    Yields (first_index, stop_index, [(code, comment, column), ...]).
+    Whole-line comments and lines without one break a run.
+    """
+    states = line_states(lines)
+    entries = []
+    for n, line in enumerate(lines):
+        in_string, in_block = states[n]
+        at = _comment_start(line, in_string, in_block)
+        code = line[:at].rstrip() if at is not None else ""
+        entries.append((code, line[at:].rstrip(), at) if at is not None and code else None)
+
+    runs, start = [], None
+    for n in range(len(entries) + 1):
+        if n < len(entries) and entries[n]:
+            if start is None:
+                start = n
+        else:
+            if start is not None and n - start >= 2:
+                runs.append((start, n, entries[start:n]))
+            start = None
+    return runs
+
+
+def _author_aligned(lines):
+    """The comment texts belonging to runs the author deliberately lined up.
+
+    Deliberate means every comment in the run starts at the same column AND at
+    least one is padded out to reach it, so a run that happens to line up
+    because the code is all the same length does not count.
+
+    Texts rather than line numbers, because normalize() and the wrapper run
+    before the output exists and neither preserves line numbering.
+    """
+    aligned = set()
+    for _, _, entries in _comment_runs(lines):
+        columns = {column for _, _, column in entries}
+        if len(columns) == 1 and any(column > len(code) + 1 for code, _, column in entries):
+            aligned.update(comment for _, comment, _ in entries)
+    return aligned
+
+
+def _align_comments(lines, aligned):
+    """Line up each run the author lined up, two spaces past its longest piece
+    of code.  Runs the author left alone keep the single space."""
+    out = list(lines)
+    for first, _, entries in _comment_runs(out):
+        if not all(comment in aligned for _, comment, _ in entries):
+            continue
+        width = max(len(code) for code, _, _ in entries)
+        for n, (code, comment, _) in enumerate(entries):
+            out[first + n] = code + " " * (width - len(code) + 2) + comment
+    return out
+
+
+def format_source(src, align=False):
+    raw_lines = src.split("\n")
+    if raw_lines and raw_lines[-1] == "":
+        raw_lines.pop()
+
+    stack = [0]
+    brace_depth = 0
+    block_indent = 0
+    result = []
+    states = line_states(raw_lines)
+
+    for lineno, raw in enumerate(raw_lines):
+        in_string, in_block = states[lineno]
+
+        # A line that begins inside a string literal is program DATA. Emit it
+        # byte for byte -- stripping or re-indenting it changes what the
+        # program prints.
+        if in_string:
+            result.append(raw)
+            # The line is emitted verbatim, but the code AFTER the closing
+            # quote still has to update the bracket stack -- otherwise the
+            # `)` that closes the call is never popped and everything below
+            # is indented from a stack that is too deep.
+            i, n = 0, len(raw)
+            while i < n:
+                if raw[i] == "\\":
+                    i += 2
+                    continue
+                if raw[i] == '"':
+                    i += 1
+                    break
+                i += 1
+            else:
+                continue                    # string does not close on this line
+            _, _, brace_depth = scan(raw[i:], i, stack, brace_depth)
+            continue
+
+        ends_in_string = lineno + 1 < len(states) and states[lineno + 1][0]
+        if ends_in_string:
+            # trailing spaces here are inside the literal, so only the leading
+            # indentation may be touched
+            result.append(" " * indent_from(stack, 0) + raw.lstrip())
+            _, _, brace_depth = scan(raw.strip(), 0, stack, brace_depth)
+            continue
+
+        stripped = raw.strip()
+
+        if in_block:
+            # Align a leading `*`; otherwise leave the author's layout alone
+            # (ASCII art and tables live in block comments).
+            result.append(" " * (block_indent + 1) + stripped if stripped.startswith("*") else raw.rstrip())
+            # Code after the closing `*/` still has to update the bracket
+            # stack, exactly as for a multi-line string: otherwise the `)`
+            # that closes the enclosing call is never popped and every line
+            # below is indented from a stack that is too deep.
+            close = raw.find("*/")
+            if close != -1:
+                after = close + 2
+                _, _, brace_depth = scan(raw[after:], after, stack, brace_depth)
+            continue
+
+        if not stripped:
+            result.append("")
+            continue
+
+        indent = indent_from(stack, leading_closers(stripped))
+        stack_before, brace_before = list(stack), brace_depth
+        code_end, _, brace_depth = scan(stripped, indent, stack, brace_depth)
+
+        code = stripped[:code_end].rstrip()
+        comment = stripped[code_end:].strip()
+
+        if not code and comment.startswith(LINE_COMMENT):
+            pad = " " * indent
+            body = comment[len(LINE_COMMENT):].rstrip()
+            # Keep the author's interior spacing: a commented-out block or an
+            # aligned table loses its structure if the body is stripped.
+            aligned = "  " in body.strip()
+            if len(pad + comment) > LIMIT and not aligned:
+                result.extend(reflow_comment(pad, body))
+            elif body and not body[0].isspace():
+                result.append(pad + LINE_COMMENT + " " + body)
+            else:
+                result.append((pad + LINE_COMMENT + body).rstrip())
+            continue
+
+        if lineno + 1 < len(states) and states[lineno + 1][1]:
+            block_indent = indent      # this line opened a block comment
+
+        if brace_before >= 1:
+            # Inside { } a newline is whitespace, so the line can be exploded.
+            result.extend(render(stripped, indent))
+        else:
+            result.extend(render_top_level(stripped, indent))
+
+    out, blank = [], 0
+    for text in result:
+        if text:
+            out.append(text)
+            blank = 0
+        else:
+            blank += 1
+            if blank == 1 and out:
+                out.append("")
+    while out and not out[-1]:
+        out.pop()
+
+    # Trailing comments the author lined up stay lined up: collapsing them to a
+    # single space throws away a deliberate layout choice.  The caller decides,
+    # because normalize() has already flattened the spacing by the time we see
+    # the source.
+    if align:
+        out = _align_comments(out, align)
+
+    return "\n".join(out) + "\n" if out else ""
+
+
+SPACED = {
+    "=", "==", "!=", "<=", ">=", "<", ">", "+", "-", "*", "/", "\\", "%",
+    "&&", "||", "+=", "-=", "*=", "/=", "\\=", "%=", "^=", "<<", ">>",
+    "<<=", ">>=", "->", ")->", "\\/", "\\/=", "|",
+    "===", "<>",          # === is stricter than ==; <> aliases !=
+}
+# `&` is a prefix reference marker (issquare(9,&r)); `:` is a gp2c type
+# annotation (g(x:small)) that GP keeps in the closure. Both bind tight.
+# Bind tight to their operand: `x^2`, `#v`, `nf.disc`, `v[2..4]`, `a?b:c`.
+TIGHT = {"^", "~", "#", "'", "&", ":", "++", "--", ".", "..", "?"}
+OPS = sorted(SPACED | TIGHT | {"!"}, key=len, reverse=True)
+WORDLIKE = ("id", "num", "str")
+
+# Control-flow keywords, which take a space before `(` unlike function calls.
+KEYWORDS = {
+    "if", "for", "while", "until", "forprime", "forstep", "forvec", "fordiv",
+    "forcomposite", "forpart", "forsubset", "forperm", "forsquarefree",
+    "foreach", "iferr",
+}
+
+
+def tokenize(src):
+    """GP source -> list of (kind, text). Kinds: nl id num str op punct lcom bcom."""
+    toks = []
+    i, n = 0, len(src)
+    at_line_start = True
+    while i < n:
+        c = src[i]
+
+        # A `\` metacommand (\p 100, \r file) occupies a whole line and is not
+        # an expression -- an unquoted filename must not be re-spaced.
+        if at_line_start and c == "\\" and src[i + 1:i + 2] != "\\" \
+                and src[i + 1:i + 2].strip():
+            end = src.find("\n", i)
+            end = n if end == -1 else end
+            toks.append(("meta", src[i:end].rstrip()))
+            i = end
+            continue
+        if not c.isspace():
+            at_line_start = False
+
+        if c == "\n":
+            toks.append(("nl", "\n"))
+            at_line_start = True
+            i += 1
+        elif c in " \t":
+            i += 1
+        elif src.startswith("\\\\", i):                 # line comment
+            end = src.find("\n", i)
+            end = n if end == -1 else end
+            toks.append(("lcom", src[i:end].rstrip()))
+            i = end
+        elif src.startswith("/*", i):                   # block comment
+            end = src.find("*/", i + 2)
+            end = n if end == -1 else end + 2
+            toks.append(("bcom", src[i:end]))
+            i = end
+        elif c == '"':                                  # string
+            j = i + 1
+            while j < n and src[j] != '"':
+                j += 2 if src[j] == "\\" else 1
+            toks.append(("str", src[i:min(j + 1, n)]))
+            i = min(j + 1, n)
+        elif c.isdigit() or (c == "." and i + 1 < n and src[i + 1].isdigit()):
+            j = i
+            while j < n and (src[j].isdigit()
+                             or (src[j] == "." and src[j:j + 2] != "..")):
+                j += 1
+            if j < n and src[j] in "eE":                # 1.0E10
+                k = j + 1
+                if k < n and src[k] in "+-":
+                    k += 1
+                if k < n and src[k].isdigit():
+                    j = k
+                    while j < n and src[j].isdigit():
+                        j += 1
+            toks.append(("num", src[i:j]))
+            i = j
+        elif c.isalpha() or c == "_":
+            j = i
+            while j < n and (src[j].isalnum() or src[j] == "_"):
+                j += 1
+            toks.append(("id", src[i:j]))
+            i = j
+        elif c == "'" and i + 1 < n and (src[i + 1].isalpha() or src[i + 1] == "_") \
+                and not (toks and toks[-1][0] in WORDLIKE or toks and toks[-1][1] in ")]"):
+            j = i + 1                                   # 'x quoted variable
+            while j < n and (src[j].isalnum() or src[j] == "_"):
+                j += 1
+            toks.append(("id", src[i:j]))
+            i = j
+        elif c == "\\" and src[i + 1:].split("\n", 1)[0].strip() == "":
+            # `\` as the last thing on a line is a line continuation: it joins
+            # this line to the next. It is NOT the integer-division operator,
+            # and emitting it as one turns `1+\<nl>2` into `1 + \ 2`, which is
+            # a syntax error. Verified against gp.
+            toks.append(("cont", "\\"))
+            i = src.find("\n", i)
+            if i == -1:
+                i = n
+        elif c in "()[]{},;":
+            toks.append(("punct", c))
+            i += 1
+        else:
+            after_value = bool(toks) and (toks[-1][0] in WORDLIKE
+                                          or toks[-1][1] in ")]")
+            if after_value and src[i:i + 2] in ("++", "--"):
+                toks.append(("op", src[i:i + 2]))       # post-increment
+                i += 2
+                continue
+            if after_value and c == "!" and src[i:i + 3] == "!==":
+                toks.append(("op", "!"))    # `5!==120` is factorial then `==`
+                i += 1
+                continue
+            for op in OPS:
+                if src.startswith(op, i):
+                    toks.append(("op", op))
+                    i += len(op)
+                    break
+            else:
+                toks.append(("op", c))                  # unknown: pass through
+                i += 1
+    return toks
+
+
+def _is_unary(prev):
+    if prev is None:
+        return True
+    kind, text = prev
+    if kind == "op":
+        return True
+    return text in "([,;"
+
+
+def _space_between(prev, cur, unary):
+    """Should a space separate these two tokens?"""
+    if prev is None:
+        return False
+    pk, pt = prev
+    ck, ct = cur
+
+    if ct in ",;" or ct in ")]":
+        return False
+    if pt in "([":
+        return False
+    if pt in ",;":
+        return True                                     # a comma always breathes
+    # A binary operator still breathes after a tight one: `x++ == 1`, not
+    # `x++== 1`. A unary sign is the exception -- `a^-1` stays closed up.
+    if ck == "op" and ct in SPACED and not (ct in "+-" and _is_unary(prev)):
+        return True
+    if pk == "op" and pt in "+-" and ck == "op" and ct in "+-":
+        # Two signs must not touch: `a * - -b` would become `a * --b`, which
+        # reads as a decrement and re-lexes differently.
+        return True
+    if unary:                                           # -1, not - 1
+        return False
+    if pk == "op" and pt in SPACED:
+        return True                                     # `a = #v`, `a && !b`
+    if pk == "op" and pt in TIGHT:
+        return False
+    if ck == "op" and ct in TIGHT:
+        return False
+    if pk == "op" and pt == "!":                        # prefix not
+        return False
+    if ck == "op" and ct == "!":                        # postfix factorial
+        return False
+    if pk == "op" and pt in SPACED:
+        return True
+    if ck == "op" and ct in SPACED:
+        return True
+    if ct == "(":
+        # PARI's own style (codeguide.html, and 421-vs-7 in Belabas's corpus):
+        # `if (`, `for (`, `while (` are KEYWORDS and take a space; `my(`,
+        # `vector(`, `f(` are CALLS and do not.
+        if pk == "id" and pt in KEYWORDS:
+            return True
+        return not (pk in WORDLIKE or pt in ")]")
+    if ct == "[":                                       # index vs literal
+        return not (pk in WORDLIKE or pt in ")]")
+    return True
+
+
+def _ends_with_line_comment(text):
+    """True when a `\\` comment is open at the end of `text`.
+
+    Such a comment runs to the newline, so the line must be flushed: joining
+    would swallow the next statement into the comment.
+    """
+    i, n, in_str = 0, len(text), False
+    while i < n:
+        two, c = text[i:i + 2], text[i]
+        if in_str:
+            if c == "\\":
+                i += 2
+                continue
+            if c == '"':
+                in_str = False
+            i += 1
+        elif two == LINE_COMMENT:
+            return True
+        elif c == '"':
+            in_str = True
+            i += 1
+        else:
+            i += 1
+    return False
+
+
+def _splittable_at_top_level(items):
+    """May these top-level statements each go on their own line?
+
+    A newline at top level ends the statement, which is normally fatal to
+    splitting -- but only two things actually depend on statements sharing a
+    seq, and both are detectable:
+
+      * `my()` / `local()` scope ends with the seq, so `my(x=1); print(x)`
+        split across lines prints the symbol `x` instead of 1.
+      * a function definition's body runs to the end of the expression, so
+        `f(x) = x+1; g()` puts `g()` inside f's body.
+
+    With neither present, each statement is independent and splitting is a
+    pure layout change. Verified against gp.
+    """
+    for item in items[:-1] if len(items) > 1 else []:
+        code = item
+        cut = code.find(LINE_COMMENT)
+        if cut != -1:
+            code = code[:cut]
+        if re.search(r"\b(my|local)\s*\(", code):
+            return False
+        if re.search(r"^\s*[A-Za-z_]\w*\s*\([^()]*\)\s*=(?!=)", code):
+            return False                    # a function definition
+    return True
+
+
+def normalize(src):
+    """Re-space tokens, and put one statement per line inside { } blocks."""
+    toks = tokenize(src)
+    lines, cur = [], ""
+    prev = None
+    brace_depth = 0
+    square_depth = 0
+    paren_depth = 0
+    prev_was_unary = False
+    skip_next_nl = False
+    just_flushed = False
+    _top_level_split_ok = False
+
+    def flush():
+        nonlocal cur, prev
+        lines.append(cur.rstrip())
+        cur, prev = "", None
+
+    for idx, (kind, text) in enumerate(toks):
+        if kind not in ("nl",) and not cur.strip() and brace_depth == 0:
+            # starting a fresh top-level line: decide once whether its
+            # statements may be separated
+            rest, depth_p, depth_s, buf = [], 0, 0, ""
+            for k2, t2 in toks[idx:]:
+                if k2 == "nl" and depth_p == 0 and depth_s == 0:
+                    break
+                if t2 in "([":
+                    depth_p += 1
+                elif t2 in ")]":
+                    depth_p = max(0, depth_p - 1)
+                elif t2 == "{":
+                    depth_s += 1
+                elif t2 == "}":
+                    depth_s = max(0, depth_s - 1)
+                elif t2 == ";" and depth_p == 0 and depth_s == 0:
+                    rest.append(buf)
+                    buf = ""
+                    continue
+                buf += t2 + " "
+            if buf.strip():
+                rest.append(buf)
+            _top_level_split_ok = len(rest) > 1 and _splittable_at_top_level(rest)
+
+        if kind == "nl":
+            if skip_next_nl:        # do not emit a blank line after a block comment
+                skip_next_nl = False
+                continue
+            # Inside { } a newline is only whitespace, so a statement the
+            # author split across lines is JOINED back into one logical line
+            # and re-broken by the layout engine. Without this the formatter
+            # can only re-indent the author's line breaks, which leaves runs
+            # of `)));` wherever they happened to put them. At top level a
+            # newline terminates the statement, so joining is never safe there.
+            if brace_depth >= 1 and cur.strip() and not _ends_with_line_comment(cur):
+                continue
+            if prev is not None and prev[1] == "=" and cur.strip():
+                nxt = next((t for t in toks[idx + 1:] if t[0] != "nl"), None)
+                if nxt is None or nxt[1] != "{" or BRACE_STYLE == "same-line":
+                    continue    # trailing `=` continues onto the next line
+            if just_flushed:
+                # The statement already ended at its `;` or `{`; this newline
+                # is that same line break, not an author's blank line.
+                just_flushed = False
+                continue
+            flush()
+            continue
+
+        if kind == "bcom" and "\n" in text:
+            if brace_depth == 0 and cur.strip():
+                # Top level: a newline after this comment would terminate the
+                # statement. Keep the comment inline, newlines and all.
+                cur += (" " if cur[-1:] not in ("", " ", "(", "[") else "") + text
+                prev = (kind, text)     # so the next token still gets spaced
+                just_flushed = False
+                continue
+            if cur.strip():
+                flush()
+            lines.extend(text.split("\n"))
+            prev = None
+            skip_next_nl = True     # the comment already ended the line
+            just_flushed = False
+            continue
+
+        if kind == "cont":
+            # Pure layout: drop it and join the next line on. render_top_level
+            # re-emits markers wherever the result actually needs them.
+            skip_next_nl = True
+            continue
+
+        if kind == "meta":
+            if cur.strip():
+                flush()
+            lines.append(text)
+            prev = None
+            skip_next_nl = True
+            just_flushed = False
+            continue
+
+        if kind == "lcom":
+            cur += (" " if cur.strip() else "") + text
+            just_flushed = False        # this line has content again
+            continue
+
+        # Braces inside an expression -- `qfminim(m,,,{2})` -- are a degenerate
+        # use of GP's line-continuation device: the parser deletes the
+        # characters, so they mean nothing there. They must go, because GP
+        # cannot nest braces, so leaving them would make it impossible to put
+        # the enclosing function body in a brace block (the idiom PARI itself
+        # uses). Verified: `{2}` and `2` behave identically as an argument.
+        if text in "{}" and (paren_depth > 0 or square_depth > 0):
+            if text == "{":
+                brace_depth += 1
+            else:
+                brace_depth = max(0, brace_depth - 1)
+            continue
+
+        # A `}` closes a function body, so it belongs on its own line -- the
+        # style in PARI's own examples and in Belabas's corpus. Safe because a
+        # newline inside braces is whitespace.
+        if (text == "}" and cur.strip()
+                and paren_depth == 0 and square_depth == 0):
+            flush()                 # a function body's closer gets its own line
+            just_flushed = True
+
+        unary = kind == "op" and text in "+-" and _is_unary(prev)
+        if _space_between(prev, (kind, text), prev_was_unary):
+            cur += " "
+        cur += text
+        prev = (kind, text)
+        prev_was_unary = unary
+        just_flushed = False
+        skip_next_nl = False    # real content: the next newline is a real break
+
+        if text == "{":
+            brace_depth += 1
+            if (BRACE_STYLE == "next-line" and paren_depth == 0
+                    and square_depth == 0
+                    and cur.strip() and cur.rstrip().endswith("{")):
+                # `f(x) = {` -> put the brace on its own line, matching the
+                # `f(x) =` / `{` form the rest of the file uses
+                cur = cur.rstrip()[:-1].rstrip()
+                if cur.strip():
+                    flush()
+                cur = "{"
+            nxt = toks[idx + 1] if idx + 1 < len(toks) else None
+            # Newlines inside braces are joined now, so this must flush even
+            # when one follows; only a trailing comment stays on this line.
+            # Inside ( ) or [ ] the brace is not a body -- GP deletes the
+            # characters, so `qfminim(m,,,{2})` is just an argument.
+            if ((nxt is None or nxt[0] != "lcom")
+                    and paren_depth == 0 and square_depth == 0):
+                flush()                 # body starts on its own line
+                just_flushed = True
+        elif text == "}":
+            brace_depth = max(0, brace_depth - 1)
+        elif text == "[":
+            square_depth += 1
+        elif text == "]":
+            square_depth = max(0, square_depth - 1)
+        elif text == "(":
+            paren_depth += 1
+        elif text == ")":
+            paren_depth = max(0, paren_depth - 1)
+        elif (text == ";" and square_depth == 0 and paren_depth == 0
+              and (brace_depth >= 1 or _top_level_split_ok)):
+            # Safe only inside braces: at top level a newline would end the
+            # statement and silently drop my() scope (verified against gp).
+            # Excluded inside [ ] because there `;` separates matrix rows, and
+            # inside ( ) because a seq passed to for()/if() is an argument, not
+            # a block -- like a C comma expression, it stays inline if it fits.
+            # If it does not fit, the 100-column wrapper breaks it instead.
+            nxt = toks[idx + 1] if idx + 1 < len(toks) else None
+            # Keep a trailing comment attached to the statement it annotates;
+            # otherwise end the line here, since a following newline is now
+            # joined rather than treated as a terminator.
+            if nxt is None or nxt[0] not in ("lcom", "bcom"):
+                flush()
+                just_flushed = True
+
+    if cur.strip():
+        flush()
+    return "\n".join(lines) + "\n"
+
+
+def semantic_signature(src):
+    """A canonical form capturing everything GP cares about.
+
+    GP deletes all whitespace outside strings, so token text is most of it.
+    The rest is seq grouping: statements joined by `;` on one line share a seq,
+    and a seq is what bounds `my()`/`local()` scope and how far a function
+    body extends. Splitting such a seq across lines silently changes the
+    answer, so those seqs are recorded as GROUPS and compared as units.
+
+    Statements with no scope of their own -- `aa = 10; bb = 20;` -- carry no
+    such dependency, so their boundaries are layout and are ignored. Inside
+    `{ }` a newline is plain whitespace and never matters.
+    """
+    sig = []
+    group = []
+    brace = paren = 0
+    scoped = False
+    continued = False
+
+    def close_group():
+        nonlocal group, scoped
+        if group:
+            if scoped:
+                sig.append(("group", tuple(group)))   # boundary is meaningful
+            else:
+                sig.extend(group)                     # boundary is pure layout
+            group = []
+        scoped = False
+
+    for kind, text in tokenize(src):
+        if kind in ("lcom", "bcom", "meta"):
+            continue
+        if kind == "cont":
+            continued = True
+            continue
+        if kind == "nl":
+            # gp continues a line after a trailing `=` or `\`, and inside
+            # braces, so those newlines are not seq boundaries.
+            trailing_eq = bool(group) and group[-1][1] == "="
+            if brace == 0 and not continued and not trailing_eq:
+                close_group()
+            continued = False
+            continue
+        if text == "{" and paren == 0:
+            brace += 1
+            continue        # gp deletes the brace characters themselves
+        elif text == "}" and paren == 0:
+            brace = max(0, brace - 1)
+            continue
+        elif text in "{}":
+            continue        # inside an expression a brace is pure no-op
+        elif text in "([":
+            paren += 1
+        elif text in ")]":
+            paren = max(0, paren - 1)
+        if True:
+            if kind == "id" and text in ("my", "local"):
+                scoped = True
+            elif text == "=" and paren == 0 and group and group[-1][1] == ")":
+                # `f(x) = ...` -- a function definition, whose body runs to the
+                # end of the expression, so its seq must not be broken up.
+                scoped = True
+            group.append((kind, text))
+
+    close_group()
+    return sig
+
+
+class UnsafeFormat(Exception):
+    """The formatted output is not equivalent to the input."""
+
+
+def format_checked(src):
+    """Format, then PROVE the result is equivalent before returning it.
+
+    A formatter wired into format-on-save rewrites the user's file on every
+    write, and conform.nvim only rejects output that is entirely empty -- it
+    will happily install subtly wrong output. So the output is re-tokenised and
+    compared against the input; on any mismatch we raise, print nothing to
+    stdout and exit non-zero, which makes conform leave the buffer untouched.
+    """
+    out = format_source(normalize(src), _author_aligned(src.split("\n")))
+    before, after = semantic_signature(src), semantic_signature(out)
+    if before != after:
+        for i, (b, a) in enumerate(zip(before, after)):
+            if b != a:
+                raise UnsafeFormat(
+                    "token %d changed: %r -> %r" % (i, b[1], a[1]))
+        raise UnsafeFormat(
+            "token count changed: %d -> %d" % (len(before), len(after)))
+    return out
+
+
+def _parse_editorconfig(path):
+    """Pull indent_size / max_line_length out of an .editorconfig.
+
+    Only the sections that can apply to a .gp file are considered. This is a
+    deliberately small subset: Neovim applies .editorconfig to the buffer AFTER
+    the ftplugin runs, so if the formatter ignored it the two would disagree
+    about indent width on every save.
+    """
+    found = {}
+    applies = False
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = line.split("#", 1)[0].split(";", 1)[0].strip()
+        if not line:
+            continue
+        if line.startswith("[") and line.endswith("]"):
+            glob = line[1:-1]
+            applies = glob in ("*", "*.gp", "{*.gp}") or "gp" in glob.replace("*", " ").split()
+            continue
+        if not applies or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key, value = key.strip().lower(), value.strip()
+        if key == "indent_size" and value.isdigit():
+            found["indent"] = int(value)
+        elif key == "max_line_length" and value.isdigit():
+            found["width"] = int(value)
+        elif key == "indent_style" and value == "tab":
+            found["tabs"] = True
+    return found
+
+
+def _parse_gpfmt_config(path):
+    """A .gpfmt file: `key = value` lines, `#` comments."""
+    found = {}
+    for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
+        line = line.split("#", 1)[0].strip()
+        if "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key, value = key.strip().lower().replace("-", "_"), value.strip()
+        if key in ("indent", "width") and value.isdigit():
+            found[key] = int(value)
+        elif key == "brace_style" and value in ("same-line", "next-line"):
+            found[key] = value
+    return found
+
+
+def discover_config(start):
+    """Walk up from `start` for a .gpfmt, else an .editorconfig.
+
+    Same discovery model as clang-format and rustfmt: nearest file wins, and
+    .gpfmt takes precedence over .editorconfig when both are present.
+    """
+    try:
+        here = pathlib.Path(start).resolve()
+    except OSError:
+        return {}
+    if here.is_file():
+        here = here.parent
+    for directory in [here, *here.parents]:
+        own = directory / ".gpfmt"
+        if own.is_file():
+            try:
+                return _parse_gpfmt_config(own)
+            except OSError:
+                return {}
+        ec = directory / ".editorconfig"
+        if ec.is_file():
+            try:
+                return _parse_editorconfig(ec)
+            except OSError:
+                return {}
+    return {}
+
+
+USAGE = """usage: gpfmt [options] [file ...]
+
+Format PARI/GP source. With no file arguments, reads stdin and writes stdout.
+
+options:
+  -i, --in-place     rewrite each file in place
+      --check        do not write; exit 1 if any file would change
+      --diff         print a unified diff instead of the formatted source
+      --indent N     spaces per indent level (default 2)
+      --width N      column limit (default 80, per PARI's coding guide)
+      --stdin-filename PATH
+                     the path stdin's contents came from, so config discovery
+                     and diagnostics can name the real file
+      --brace-style S  "same-line" (default, `f(x) = {`) or "next-line"
+      --no-config    ignore .gpfmt and .editorconfig
+      --indent-fallback N
+                     indent to use only when no config file is found; this is
+                     what an editor should pass, so a project's .gpfmt still
+                     wins over the buffer's shiftwidth
+
+configuration:
+  A .gpfmt file (`key = value`, `#` comments; keys: indent, width) is looked up
+  from the file's directory upwards, nearest first. Failing that, .editorconfig
+  is read for indent_size and max_line_length. Command-line flags win over both.
+      --fast         skip the stability re-check
+      --version      print version and exit
+  -h, --help         print this help and exit
+
+exit codes:
+  0  success, or --check found nothing to change
+  1  --check found a file that would change, or formatting was refused
+     because the result would not be equivalent to the input
+  2  an error (bad usage, unreadable file, input that is not valid UTF-8)
+"""
+
+VERSION = "gpfmt 1.0"
+
+
+def format_text(src, fast=False):
+    """Format, verify equivalence, and verify stability."""
+    out = format_checked(src)
+    if not fast:
+        # Black runs the same assertion by default: a formatter that does not
+        # converge produces a diff on every save.
+        again = format_checked(out)
+        if again != out:
+            raise UnsafeFormat("not idempotent: a second pass changes the output")
+    return out
+
+
+def main(argv=None):
+    global INDENT, LIMIT, BRACE_STYLE
+    argv = list(sys.argv[1:] if argv is None else argv)
+    in_place = check = diff = fast = no_config = False
+    stdin_name = None
+    cli_indent = cli_width = fallback_indent = None
+    cli_brace = None
+    files = []
+
+    while argv:
+        arg = argv.pop(0)
+        if arg in ("-h", "--help"):
+            sys.stdout.write(USAGE)
+            return 0
+        elif arg == "--version":
+            sys.stdout.write(VERSION + "\n")
+            return 0
+        elif arg in ("-i", "--in-place"):
+            in_place = True
+        elif arg == "--check":
+            check = True
+        elif arg == "--diff":
+            diff = True
+        elif arg == "--fast":
+            fast = True
+        elif arg == "--brace-style":
+            if not argv or argv[0] not in ("same-line", "next-line"):
+                sys.stderr.write("gpfmt: --brace-style needs same-line|next-line\n")
+                return 2
+            cli_brace = argv.pop(0)
+        elif arg == "--no-config":
+            no_config = True
+        elif arg == "--indent-fallback":
+            if not argv or not argv[0].isdigit():
+                sys.stderr.write("gpfmt: --indent-fallback needs a number\n")
+                return 2
+            fallback_indent = int(argv.pop(0))
+        elif arg == "--stdin-filename":
+            if not argv:
+                sys.stderr.write("gpfmt: --stdin-filename needs a path\n")
+                return 2
+            stdin_name = argv.pop(0)
+        elif arg in ("--indent", "--width"):
+            if not argv or not argv[0].isdigit():
+                sys.stderr.write("gpfmt: %s needs a number\n" % arg)
+                return 2
+            value = int(argv.pop(0))
+            if arg == "--indent":
+                cli_indent = value
+            else:
+                cli_width = value
+        elif arg == "-":
+            files.append(None)
+        elif arg.startswith("-"):
+            sys.stderr.write("gpfmt: unknown option %s\n%s" % (arg, USAGE))
+            return 2
+        else:
+            files.append(arg)
+
+    if in_place and (not files or None in files):
+        sys.stderr.write("gpfmt: --in-place needs file arguments\n")
+        return 2
+
+    sources = []
+    for name in (files or [None]):
+        try:
+            if name is None:
+                raw = sys.stdin.buffer.read()
+            else:
+                raw = pathlib.Path(name).read_bytes()
+        except OSError as exc:
+            sys.stderr.write("gpfmt: %s\n" % exc)
+            return 2
+        try:
+            sources.append((name, raw.decode("utf-8")))
+        except UnicodeDecodeError as exc:
+            sys.stderr.write("gpfmt: %s: input is not valid UTF-8: %s\n"
+                             % (name or "<stdin>", exc))
+            return 2
+
+    changed = False
+    status = 0
+    default_indent, default_limit, default_brace = INDENT, LIMIT, BRACE_STYLE
+    for name, src in sources:
+        # nearest config wins, but an explicit flag beats any config file
+        found = {} if no_config else discover_config(name or stdin_name or ".")
+        INDENT = (cli_indent if cli_indent is not None
+                  else found.get("indent",
+                                 fallback_indent if fallback_indent is not None
+                                 else default_indent))
+        LIMIT = cli_width if cli_width is not None else found.get("width", default_limit)
+        BRACE_STYLE = (cli_brace if cli_brace is not None
+                       else found.get("brace_style", default_brace))
+        src = src.replace("\r\n", "\n").replace("\r", "\n")
+        try:
+            out = format_text(src, fast=fast)
+        except UnsafeFormat as exc:
+            sys.stderr.write("gpfmt: %s: refusing to format, %s\n"
+                             % (name or "<stdin>", exc))
+            status = 1
+            continue
+        except Exception as exc:                    # never mangle a file
+            sys.stderr.write("gpfmt: %s: internal error: %r\n"
+                             % (name or "<stdin>", exc))
+            return 2
+
+        if out != src:
+            changed = True
+
+        if check:
+            if out != src:
+                sys.stderr.write("would reformat %s\n" % (name or "<stdin>"))
+        elif diff:
+            sys.stdout.writelines(difflib.unified_diff(
+                src.splitlines(True), out.splitlines(True),
+                fromfile=(name or "<stdin>"), tofile=(name or "<stdin>") + " (formatted)"))
+        elif in_place:
+            if out != src:
+                pathlib.Path(name).write_text(out, encoding="utf-8")
+        else:
+            sys.stdout.write(out)
+
+    if check and changed:
+        return 1
+    return status
+
+
+if __name__ == "__main__":
+    sys.exit(main())
