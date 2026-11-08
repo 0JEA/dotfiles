@@ -29,6 +29,12 @@ HISTFILE=~/.zsh_history
 
 # Prompt initialization
 autoload -Uz compinit && compinit
+# XDG user dirs (Documents/Downloads/Pictures/...). Without this the vars are
+# unset in the shell and scripts fall back to $HOME. Added 2026-08-28.
+if [[ -r "${XDG_CONFIG_HOME:-$HOME/.config}/user-dirs.dirs" ]]; then
+  set -a; source "${XDG_CONFIG_HOME:-$HOME/.config}/user-dirs.dirs"; set +a
+fi
+
 export PATH="$HOME/.local/bin:$PATH"
 export PATH="$HOME/.local/bin:$PATH"
 
@@ -56,3 +62,14 @@ export CLAUDE_CODE_MAX_WEB_SEARCHES_PER_SESSION=100000
 
 # ~/.local/bin (adopted from the laptop, which hardcoded /home/coke/.local/bin)
 export PATH="$HOME/.local/bin:$PATH"
+
+# Racket user-scope binaries: plt-r5rs (the R5RS runner/REPL, from the r5rs-lib
+# package) lands here rather than in /usr/bin, because it was installed with
+# `raco pkg install` instead of pacman. The directory is version-stamped
+# (.../racket/9.3/bin), so this globs instead of hardcoding a version that a
+# Racket upgrade would silently invalidate. (N) is zsh's null_glob qualifier:
+# without it, no Racket install would make this an error rather than a no-op.
+for _racket_bin in "$HOME"/.local/share/racket/*/bin(N); do
+  export PATH="$_racket_bin:$PATH"
+done
+unset _racket_bin
