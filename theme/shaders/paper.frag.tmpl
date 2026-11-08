@@ -1,9 +1,20 @@
 #version 300 es
-// highp is REQUIRED, not a nicety: mediump carries ~10 mantissa bits, so at a
-// noise coordinate of ~47 the ULP is ~0.046 and fract() — which the value-noise
-// lattice is built on — loses nearly all its precision.
-// (Measured: the AMD driver promotes mediump here anyway, so this is belt-and-
-// braces for portability rather than a live fix.)
+// Paper screen shader. ONE source, two looks, each a port of a sibling project:
+//
+//   LOOK 0  "pdf"  -- zathura-p's paper pass (~/zathura-paper patch/render.c):
+//                     paperlab's baked tooth tile + the per-page field (lit
+//                     cockle depth, marks, pits, scratches). Defaults are the
+//                     tuned values in zathura/.config/zathura/zathurarc.
+//   LOOK 1  "web"  -- paperweb's default `paper` preset (~/code/graphics/paperweb):
+//                     lit cockle + gloss + cavity, GSM formation, fade, duotone.
+//
+// Both are pure functions of SCREEN position. A screen shader cannot follow the
+// page as it scrolls (zathura and paperweb can), and Hyprland gives it no second
+// sampler, so the tile zathura reads is regenerated procedurally here from the
+// same formula paperlab bakes it with.
+//
+// main() must have NO early return: brightness.sh composes dim by inserting
+// `fragColor.rgb *= k;` before the final `}`, and a return skips it.
 precision highp float;
 precision highp int;
 
@@ -11,318 +22,345 @@ in vec2 v_texcoord;
 layout(location = 0) out vec4 fragColor;
 uniform sampler2D tex;
 
-#define TWO_PI 6.28318530718
-#define STRENGTH __STRENGTH__
-// Sparse-feature knobs, substituted at toggle time like STRENGTH.
-// SCRATCH_THRESH is the BASELINE scratch probability: 0.985 => only 1.5% of cells
-// carry one. The scratch grid is ~20x11 cells on a 1920x1080 screen, so 0.985 is
-// ~3 scratches on the WHOLE SCREEN — which is why the imperfections read as
-// missing. Lower it for more. (Measured: scratches are sd 0.04% but p2p 6.53% —
-// a 163x ratio. They are sparse, not weak.)
-#define SCRATCH_THRESH __SCRATCH_THRESH__
-#define SCRATCH_GAIN __SCRATCH_GAIN__
-#define FOLD_GAIN __FOLD_GAIN__
-#define FOLD_COUNT __FOLD_COUNT__
-// Per-layer gains, so the live HUD has something worth dragging. All default to
-// 1.0, which reproduces the original tuning exactly.
-#define ROUGH_GAIN __ROUGH_GAIN__
-#define FIBER_GAIN __FIBER_GAIN__
-#define AO_GAIN __AO_GAIN__
-#define FADE_AMT __FADE_AMT__
-#define RELIEF_Z_VAL __RELIEF_Z_VAL__
-#define SEED_VAL __SEED_VAL__
+#define LOOK            __LOOK__
+#define STRENGTH        __STRENGTH__        // recolor-paper
+#define TOOTH           __TOOTH__           // gain on the tile term (1 = as baked)
+#define DEPTH           __DEPTH__           // recolor-paper-depth
+#define DEPTH_SCALE     __DEPTH_SCALE__     // recolor-paper-depth-scale, mm
+#define MARKS           __MARKS__           // recolor-paper-marks
+#define MARK_DENSITY    __MARK_DENSITY__
+#define MARK_SCALE      __MARK_SCALE__      // mm
+#define PITS            __PITS__            // recolor-paper-pits
+#define PIT_DENSITY     __PIT_DENSITY__
+#define PIT_SCALE       __PIT_SCALE__       // mm
+#define SCRATCHES       __SCRATCHES__       // recolor-paper-scratches
+#define SCRATCH_DENSITY __SCRATCH_DENSITY__
+#define SCRATCH_SCALE   __SCRATCH_SCALE__   // mm
+#define SEED            __SEED__            // zathura seeds by page index + 1
+#define MON_SCALE       __MON_SCALE__       // Hyprland monitor scale (web look only)
 
-// ---------------------------------------------------------------------------
-// PCG2D integer hash — Jarzynski & Olano, JCGT 9(3) 2020.
-// sin()/fract() hashes give visible grid artifacts here, and sin() is a
-// transcendental: an early revision blew the per-frame budget and the driver
-// silently truncated the frame to black.
-//
-// This is the shader's dominant cost: 8x V_MUL_LO_U32, which is QUARTER-RATE
-// on GCN/Vega (~48 full-rate-equivalent cycles per call). Do NOT "optimise" it
-// to V_MUL_U32_U24 — that truncates both operands to 24 bits, destroying the
-// LCG's bijection mod 2^32; the `v ^= v >> 16` steps then mix the corrupted
-// high bits back into the low bits we sample, reintroducing the exact grid
-// artifacts PCG was chosen to avoid.
-// ---------------------------------------------------------------------------
-uvec2 pcg2d(uvec2 v) {
-    v = v * 1664525u + 1013904223u;
-    v.x += v.y * 1664525u;
-    v.y += v.x * 1664525u;
-    v ^= v >> 16u;
-    v.x += v.y * 1664525u;
-    v.y += v.x * 1664525u;
-    v ^= v >> 16u;
-    return v;
+// Screen pixels per mm. 7.11 is the density paperlab bakes zathura's tile at
+// (2048 px over 816 pt), so one tooth texel lands on one screen pixel: the grain
+// reads at the size it was tuned at, on any monitor scale.
+const float PX_PER_MM = 2048.0 / (816.0 * 25.4 / 72.0);
+
+// #FFF3DE, the cream zathurarc and paperweb both settled on.
+const vec3 CREAM = vec3(1.0, 0.953, 0.871);
+
+// Only light pixels get papered; dark UI is left alone. Same gate paperweb uses
+// for its ink. It keys on the pixel's own luma, so light-on-dark text is papered
+// too, which is harmless while the screen is showing a light page.
+const float GATE_LO = 0.55;
+const float GATE_HI = 0.85;
+
+// --- PCG hash over float bit patterns (paperweb common.js) ------------------
+uint pcgHash(uint v) {
+    uint state = v * 747796405u + 2891336453u;
+    uint word = ((state >> ((state >> 28u) + 4u)) ^ state) * 277803737u;
+    return (word >> 22u) ^ word;
 }
-// int->uint is a defined 2's-complement reinterpret; float->uint is UNDEFINED
-// for negatives, and the inter-octave rotation does produce negatives.
-// *(1/4294967295.0) not /: 4294967295.0 isn't representable in f32 and rounds
-// to 2^32, so the reciprocal is an exact power of two — bit-identical, and
-// independent of whether the driver lowers fdiv to frcp+fmul.
-float hash21(ivec2 p) { uvec2 h = pcg2d(uvec2(p)); return float(h.x) * (1.0 / 4294967295.0); }
-vec2  hash22(ivec2 p) { uvec2 h = pcg2d(uvec2(p)); return vec2(h)   * (1.0 / 4294967295.0); }
-float hash21(vec2 p) { return hash21(ivec2(floor(p))); }
-vec2  hash22(vec2 p) { return hash22(ivec2(floor(p))); }
-
-// ---------------------------------------------------------------------------
-// IQ-style value noise + ANALYTIC gradient from ONE evaluation — the same 4
-// hashes the plain value lookup already needed. .x reproduces the old
-// valueNoise() algebraically; .yz is (d/dx, d/dy).
-// ---------------------------------------------------------------------------
-vec3 noised(vec2 st) {
-    ivec2 i = ivec2(floor(st));
-    vec2  f = fract(st);
-    float a = hash21(i);
-    float b = hash21(i + ivec2(1, 0));
-    float c = hash21(i + ivec2(0, 1));
-    float d = hash21(i + ivec2(1, 1));
-    vec2 u  = f * f * (3.0 - 2.0 * f);
-    vec2 du = 6.0 * f * (1.0 - f);
-    float k1 = b - a;
-    float k2 = c - a;
-    float k3 = a - b - c + d;
-    return vec3(a + k1 * u.x + k2 * u.y + k3 * u.x * u.y,
-                du * vec2(k1 + k3 * u.y, k2 + k3 * u.x));
+float hash21(vec2 p) {
+    uvec2 q = floatBitsToUint(p);
+    return float(pcgHash(q.x ^ pcgHash(q.y ^ 0x9e3779b9u))) * (1.0 / 4294967296.0);
 }
-// DCE deletes du and the gradient math here, so this compiles to exactly the 4
-// hashes + bilerp the old valueNoise() did. One source of truth keeps fade/
-// rough and fiber on an identical noise field.
-float valueNoise(vec2 st) { return noised(st).x; }
+vec2 hash22(vec2 p) {
+    uvec2 q = floatBitsToUint(p);
+    uint h = pcgHash(q.x ^ pcgHash(q.y ^ 0x9e3779b9u));
+    return vec2(float(h), float(pcgHash(h ^ 0x85ebca6bu))) * (1.0 / 4294967296.0);
+}
 
-const mat2 ROT = mat2(0.7648, -0.6442, 0.6442, 0.7648); // rotate(0.7rad): anti-tiling
+float vnoise(vec2 x) {
+    vec2 i = floor(x), f = fract(x);
+    f = f * f * (3.0 - 2.0 * f);
+    float a = hash21(i), b = hash21(i + vec2(1, 0));
+    float c = hash21(i + vec2(0, 1)), d = hash21(i + vec2(1, 1));
+    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
 
-float fbm3(vec2 n) {
-    float total = 0.0, amp = 1.0;
+// paperlab's fbm: normalised to 0..1, rotated between octaves.
+float fbm(vec2 x, int octaves, float gain, float lac) {
+    float sum = 0.0, amp = 1.0, tot = 0.0;
+    mat2 rot = mat2(0.7648, -0.6442, 0.6442, 0.7648);
+    for (int i = 0; i < 8; ++i) {
+        if (i >= octaves) break;
+        sum += amp * vnoise(x);
+        tot += amp;
+        amp *= gain;
+        x = rot * x * lac;
+    }
+    return sum / max(tot, 1e-5);
+}
+
+#if LOOK == 0
+// ===========================================================================
+// PDF: zathura-p
+// ===========================================================================
+
+// paperlab's ALBEDO pass with the `paperlab` preset, exactly what bake_tile()
+// renders: GSM formation at 0.9 mm, amplitude 0.1, gsm 0.65, skew -0.25, with
+// paperlab's own (odd) skew term. No fade, scratches or pits: the tile is pure
+// tooth, the blemishes live in the per-page field below.
+float formation(vec2 mm) {
+    float f = fbm(mm / 0.9, 4, 0.55, 2.0) - 0.5;
+    f *= 0.4 + 0.65 * fbm(mm / 4.5, 3, 0.5, 2.0);
+    f += -0.25 * (f * abs(f) - 0.15);
+    return 1.0 + 0.1 * f * 2.0;
+}
+
+// bake_tile()'s emboss: the formation field lit by an above-left light, times
+// itself, as (factor - 1). The gradient step is one tile texel, as baked, and
+// the clamp is the int8 quantiser's range (PAPER_TILE_SCALE = 0.101449).
+float tooth_m1(vec2 mm) {
+    const float E = 816.0 * 25.4 / 72.0 / 2048.0;   // one tile texel, mm
+    float a  = formation(mm);
+    float dx = (formation(mm + vec2(E, 0.0)) - formation(mm - vec2(E, 0.0))) * 0.5;
+    float dy = (formation(mm + vec2(0.0, E)) - formation(mm - vec2(0.0, E))) * 0.5;
+    vec2  n  = -vec2(dx, dy) * 16.0;
+    float ndl = (n.x * -0.42 + n.y * 0.42 + 0.80) * inversesqrt(dot(n, n) + 1.0);
+    float shade = clamp(1.0 + 0.5 * (ndl - 0.80), 0.84, 1.16);
+    return clamp(a * shade - 1.0, -0.101449, 0.101449);
+}
+
+// --- render.c's per-page field, ported line for line ------------------------
+uint pf_hash(int x, int y, uint seed) {
+    uint h = uint(x) * 374761393u + uint(y) * 668265263u + seed * 2246822519u;
+    h = (h ^ (h >> 13u)) * 1274126177u;
+    return h ^ (h >> 16u);
+}
+float pf_rand(int x, int y, uint seed) {
+    return float(pf_hash(x, y, seed)) * (1.0 / 4294967295.0);
+}
+float pf_vnoise(vec2 p, uint seed) {
+    int xi = int(floor(p.x)), yi = int(floor(p.y));
+    float fx = p.x - float(xi), fy = p.y - float(yi);
+    float u = fx * fx * (3.0 - 2.0 * fx), v = fy * fy * (3.0 - 2.0 * fy);
+    float a = pf_rand(xi, yi, seed), b = pf_rand(xi + 1, yi, seed);
+    float c = pf_rand(xi, yi + 1, seed), d = pf_rand(xi + 1, yi + 1, seed);
+    return (a + (b - a) * u) + ((c - a) + (a - b - c + d) * u) * v;
+}
+float pf_fbm(vec2 p, uint seed) {
+    float s = 0.0, a = 0.5, tot = 0.0;
     for (int i = 0; i < 3; i++) {
-        n = ROT * n;
-        total += valueNoise(n) * amp;
-        n *= 2.0;
-        amp *= 0.6;
+        vec2 r = vec2(p.x * 0.7648 - p.y * 0.6442, p.x * 0.6442 + p.y * 0.7648);
+        s += a * pf_vnoise(r, seed + uint(i) * 131u);
+        tot += a; p *= 2.03; a *= 0.5;
     }
-    return total;
+    return s / tot;
 }
-// normalised to ~0..1. The reference's fbm starts at amplitude .4 (max .83);
-// this one starts at 1.0 (max 1.96). Feeding an un-normalised fbm into the
-// 8*x^3 fade curve saturates it to 1.0 everywhere, which silently switches
-// folds and scratches OFF entirely.
-float fbm3n(vec2 n) { return fbm3(n) * (1.0 / 1.96); }
 
-// fbm3 + analytic gradient. Octave k is sampled at p_k = 2^k * ROT^(k+1) * x,
-// so dp_k/dx = 2^k * ROT^(k+1) and the contribution is amp * (dp_k/dx)^T * g.
-// In GLSL `v * m` is the ROW-vector product == m^T * v — exactly the transpose
-// needed. `m` derives only from the const ROT, so the chain constant-folds to
-// literal mat2s: the bookkeeping is free.
-// INVARIANT: n == m * input. Keep the two `m` lines glued to the two `n` lines.
-vec3 fbm3d(vec2 n) {
-    float total = 0.0, amp = 1.0;
-    vec2  grad  = vec2(0.0);
-    mat2  m     = mat2(1.0);
-    for (int i = 0; i < 3; i++) {
-        n = ROT * n;
-        m = ROT * m;
-        vec3 v = noised(n);
-        total += v.x * amp;
-        grad  += amp * (v.yz * m);
-        n *= 2.0;
-        m *= 2.0;
-        amp *= 0.6;
+// mm here is page-style: x right, y DOWN, as zathura's rows run.
+float page_field_m1(vec2 mm) {
+    const uint seed = uint(SEED);
+    float field = 0.0;
+
+    // broad isotropic cockle, lit above-left
+    if (DEPTH > 0.0) {
+        vec2 s = mm / DEPTH_SCALE;
+        const float e = 0.08;
+        float hx = pf_fbm(s + vec2(e, 0.0), seed) - pf_fbm(s - vec2(e, 0.0), seed);
+        float hy = pf_fbm(s + vec2(0.0, e), seed) - pf_fbm(s - vec2(0.0, e), seed);
+        float nx = -hx * 2.0, ny = -hy * 2.0;
+        float ndl = (nx * -0.42 + ny * 0.42 + 0.80) * inversesqrt(nx * nx + ny * ny + 1.0);
+        field = (ndl - 0.80) * DEPTH;
     }
-    return vec3(total, grad);
-}
 
-// ---------------------------------------------------------------------------
-// FIBER — gradient MAGNITUDE of fbm. Ridges form along noise contours, giving
-// curly filament structure (real pulp) instead of flat grain. This is the
-// mid-frequency band the early versions lacked entirely.
-//
-// Was 4x fbm3 (48 pcg2d) central-differencing the gradient; now 1x fbm3d
-// (12 pcg2d). The old epsilon (0.002 noise units = 0.196 screen px = 0.008
-// lattice cells at the top octave) made the truncation error ~1e-4 — about
-// 400x below the 1/255 output quantum. Same picture, a quarter of the cost.
-// This trick does NOT transfer to `rough` — see the tripwire in main().
-// ---------------------------------------------------------------------------
-float fiberNoise(vec2 uv) { return length(fbm3d(uv).yz); }
+    // Every blemish scans the 3x3 cell neighbourhood; testing only the own cell
+    // clips features at the cell wall into hard squares.
 
-// ---------------------------------------------------------------------------
-// FOLDS — nearest-of-N random centres; returns the offset vector toward the
-// nearest centre, faded by distance.
-//
-// Both call sites test the SAME 7 compile-time-constant centres, so they are
-// fused into one pass. The nearest search runs on SQUARED distance (sqrt is
-// monotonic, so the winner is identical), dropping 14 quarter-rate sqrts;
-// clamp(d,0,1)^0.25 == clamp(d2,0,1)^0.125 for d >= 0.
-//
-// NOTE the ridge this feeds is `max(0, w + w2)` with w ~ w2, i.e. ~2w — a
-// smooth broad gradient everywhere EXCEPT where the nearest-centre assignment
-// flips, where a crease discontinuity appears. The broad term dominates; the
-// creases are secondary. (Verified by rendering — the look is intentional.)
-// ---------------------------------------------------------------------------
-void folds2(vec2 uvA, vec2 uvB, float count, float seed, out vec2 wA, out vec2 wB) {
-    vec2 pA = vec2(0.0), pB = vec2(0.0);
-    float lA = 81.0, lB = 81.0;                     // 9.0^2
-    for (int i = 0; i < 8; i++) {
-        if (float(i) >= count) break;
-        float fi = float(i);
-        vec2 rnd = hash22(vec2(fi * 7.0 + 3.0, fi * 13.0 + seed * 17.0 + 5.0));
-        float an = rnd.x * TWO_PI;
-        vec2 p = vec2(cos(an), sin(an)) * rnd.y;    // compile-time constant
-        vec2 dA = uvA - p; float d2A = dot(dA, dA);
-        if (d2A < lA) { lA = d2A; pA = dA; }
-        vec2 dB = uvB - p; float d2B = dot(dB, dB);
-        if (d2B < lB) { lB = d2B; pB = dB; }
+    // rare large marks, light or dark
+    if (MARKS > 0.0 && MARK_DENSITY > 0.0) {
+        vec2 cm = mm / MARK_SCALE;
+        int cx = int(floor(cm.x)), cy = int(floor(cm.y));
+        for (int j = -1; j <= 1; j++)
+        for (int i = -1; i <= 1; i++) {
+            int gx = cx + i, gy = cy + j;
+            if (pf_rand(gx, gy, seed ^ 0x9e3779b9u) >= MARK_DENSITY) continue;
+            vec2 o = vec2(pf_rand(gx, gy, seed + 7u), pf_rand(gx, gy, seed + 13u));
+            vec2 d = cm - (vec2(gx, gy) + o);
+            float rad = 0.12 + 0.20 * pf_rand(gx, gy, seed + 21u);
+            float dist = length(d);
+            if (dist >= rad) continue;
+            float m = 1.0 - dist / rad;
+            m *= m;
+            float sgn = (pf_rand(gx, gy, seed + 33u) < 0.5) ? -1.0 : 1.0;
+            field += sgn * MARKS * m;
+        }
     }
-    wA = mix(pA, vec2(0.0), sqrt(sqrt(sqrt(clamp(lA, 0.0, 1.0)))));
-    wB = mix(pB, vec2(0.0), sqrt(sqrt(sqrt(clamp(lB, 0.0, 1.0)))));
+
+    // small dark pits
+    if (PITS > 0.0 && PIT_DENSITY > 0.0) {
+        vec2 cm = mm / PIT_SCALE;
+        int cx = int(floor(cm.x)), cy = int(floor(cm.y));
+        for (int j = -1; j <= 1; j++)
+        for (int i = -1; i <= 1; i++) {
+            int gx = cx + i, gy = cy + j;
+            if (pf_rand(gx, gy, seed + 61u) >= PIT_DENSITY) continue;
+            vec2 o = vec2(pf_rand(gx, gy, seed + 71u), pf_rand(gx, gy, seed + 83u));
+            vec2 d = cm - (vec2(gx, gy) + o);
+            float rad = 0.06 + 0.12 * pf_rand(gx, gy, seed + 97u);
+            float dist = length(d);
+            if (dist >= rad) continue;
+            float m = 1.0 - dist / rad;
+            field -= PITS * m * (0.5 + 0.5 * pf_rand(gx, gy, seed + 101u));
+        }
+    }
+
+    // sparse scratches, mostly light
+    if (SCRATCHES > 0.0 && SCRATCH_DENSITY > 0.0) {
+        vec2 cm = mm / SCRATCH_SCALE;
+        int cx = int(floor(cm.x)), cy = int(floor(cm.y));
+        for (int j = -1; j <= 1; j++)
+        for (int i = -1; i <= 1; i++) {
+            int gx = cx + i, gy = cy + j;
+            if (pf_rand(gx, gy, seed + 149u) >= SCRATCH_DENSITY) continue;
+            vec2 o = vec2(pf_rand(gx, gy, seed + 151u), pf_rand(gx, gy, seed + 163u));
+            float ang = pf_rand(gx, gy, seed + 173u) * 3.14159265358979;
+            float ca = cos(ang), sa = sin(ang);
+            vec2 d = cm - (vec2(gx, gy) + o);
+            float perp  = d.x * -sa + d.y * ca;
+            float along = d.x * ca + d.y * sa;
+            float len = 0.30 + 0.45 * pf_rand(gx, gy, seed + 179u);
+            float wid = 0.010 + 0.020 * pf_rand(gx, gy, seed + 191u);
+            if (abs(perp) >= wid || abs(along) >= len) continue;
+            float fall = (1.0 - abs(perp) / wid) * (1.0 - abs(along) / len);
+            float sgn = (pf_rand(gx, gy, seed + 197u) < 0.3) ? -1.0 : 1.0;
+            field += sgn * SCRATCHES * fall;
+        }
+    }
+    return field;
 }
 
-// ---------------------------------------------------------------------------
-// SCRATCHES — sparse, jittered, randomized length/width/curve/depth per cell.
-// `wear` (0..1) is the curvature-driven mask: raised areas get rubbed more.
-// ---------------------------------------------------------------------------
-float scratches(vec2 p, float wear) {
-    vec2 cell = floor(p);
-    // wear raises local scratch probability — Substance's curvature-driven wear
-    float thresh = mix(SCRATCH_THRESH, SCRATCH_THRESH - 0.085, clamp(wear, 0.0, 1.0));
-    float exists = step(thresh, hash21(cell * 5.0 + 31.0));
-    // 90-98.5% of cells have no scratch and `exists` multiplies the whole
-    // result, so the 6 hashes + cos/sin below were pure waste. A scratch cell is
-    // ~98px vs a wave64's ~8x8 tile => wave-uniform for ~84% of waves.
-    // Bit-exact: every factor below is finite, so 0.0 * x == 0.0.
-    if (exists == 0.0) return 0.0;
-
-    vec2 f = fract(p);
-    vec2 jitter = hash22(cell * 9.0 + 61.0) * 0.5 + 0.25;
-    vec2 centered = f - jitter;
-    float angle = hash21(cell * 3.0 + 97.0) * TWO_PI;
-    vec2 dir = vec2(cos(angle), sin(angle));
-    float along = dot(centered, dir);
-    float perp = centered.x * -dir.y + centered.y * dir.x;
-    perp += (hash21(cell * 11.0 + 131.0) - 0.5) * 0.6 * along * along;  // curve
-    float halfLen = mix(0.10, 0.34, hash21(cell * 13.0 + 167.0));
-    float width  = mix(0.010, 0.024, hash21(cell * 17.0 + 197.0));
-    float depth  = mix(0.20, 1.0, hash21(cell * 19.0 + 233.0));
-    float mask = step(abs(along), halfLen) * (1.0 - smoothstep(0.0, width, abs(perp)));
-    float endFade = 1.0 - smoothstep(halfLen * 0.7, halfLen, abs(along));
-    return mask * endFade * depth;   // exists == 1.0 here
+vec3 apply_paper(vec3 src, vec2 frag, vec2 res) {
+    vec2 mm = vec2(frag.x, res.y - frag.y) / PX_PER_MM;
+    float shade_m1 = TOOTH * tooth_m1(mm) + page_field_m1(mm);
+    // zathura: l *= 1 + paper * shade_m1, CLAMPED to 1, then out = lightcolor * l.
+    // The clamp comes before the cream, so on a white page only the darkening
+    // half of the texture shows. That is the PDF look, so it is kept.
+    return CREAM * clamp(src * (1.0 + STRENGTH * shade_m1), 0.0, 1.0);
 }
 
-// --- tuning (scaled by STRENGTH) -------------------------------------------
-const float U_ROUGHNESS = 0.50 * STRENGTH * ROUGH_GAIN;
-const float U_FIBER     = 0.28 * STRENGTH * FIBER_GAIN;
-const float U_FOLDS     = 0.35 * STRENGTH * FOLD_GAIN;
-const float U_SCRATCH   = 0.30 * STRENGTH * SCRATCH_GAIN;
-const float U_AO        = 0.35 * STRENGTH * AO_GAIN;
-const float U_FOLDCOUNT = FOLD_COUNT;
-const float U_SEED      = SEED_VAL;
-const float U_FADE      = FADE_AMT;  // input to the 8*x^3 curve; must stay unsaturated
-const float U_RELIEF_Z  = RELIEF_Z_VAL;  // NOT strength-scaled; STRENGTH drives amplitude
-const float U_GATE_LO   = 0.55;
-const float U_GATE_HI   = 0.85;
+#else
+// ===========================================================================
+// WEB: paperweb, `paper` preset over params.defaults()
+// ===========================================================================
+
+// paperweb keeps paperlab's float hash for the RELIEF only (page.legacy = 2):
+// on this GPU it is what gives the cockle its faceted character.
+float lhash(vec2 p) {
+    p = fract(p * vec2(123.34, 345.45));
+    p += dot(p, p + 34.345);
+    return fract(p.x * p.y);
+}
+float lvnoise(vec2 x) {
+    vec2 i = floor(x), f = fract(x);
+    f = f * f * (3.0 - 2.0 * f);
+    float a = lhash(i), b = lhash(i + vec2(1, 0));
+    float c = lhash(i + vec2(0, 1)), d = lhash(i + vec2(1, 1));
+    return mix(mix(a, b, f.x), mix(c, d, f.x), f.y);
+}
+float lfbm(vec2 x, int octaves) {
+    float sum = 0.0, amp = 1.0, tot = 0.0;
+    mat2 rot = mat2(0.7648, -0.6442, 0.6442, 0.7648);
+    for (int i = 0; i < 8; ++i) {
+        if (i >= octaves) break;
+        sum += amp * lvnoise(x);
+        tot += amp;
+        amp *= 0.5;
+        x = rot * x * 2.0;
+    }
+    return sum / max(tot, 1e-5);
+}
+
+// HEIGHT pass, cockle only: wavelength 30 mm, 22 um, anisotropy 2.2,
+// irregularity 0.9. Returns um.
+float height_um(vec2 mm) {
+    vec2 t = mm;
+    t.x /= 2.2;
+    float organic = lfbm(t / (30.0 * 0.55), 3) - 0.5;
+    float warp = (lfbm(t / 30.0, 2) - 0.5) * 2.0;
+    float wave = 0.5 * sin(t.y * 6.2831853 / 30.0 + warp * 1.5);
+    return mix(wave, organic * 1.6, 0.9) * 22.0;
+}
+
+// ALBEDO pass: fade 60 mm x 0.65, GSM formation 2.5 mm x 0.02, skew -0.3.
+float albedo(vec2 mm) {
+    float m = fbm(mm / 60.0, 3, 0.5, 2.0);
+    float fade = clamp(8.0 * m * m * m, 0.0, 1.0) * 0.65;
+    float f = fbm(mm / 2.5, 4, 0.55, 2.0) - 0.5;
+    f *= 0.4 + 0.7 * fbm(mm / 12.5, 3, 0.5, 2.0);
+    const float NOM_SD = 0.13;
+    float fn = f / NOM_SD;
+    f += -0.3 * NOM_SD * 0.5 * (fn * fn - 1.0);
+    return 1.0 + 0.02 * f * 2.0 * mix(1.0, 0.35, fade);
+}
+
+// paperweb sizes everything in mm at a nominal 96 CSS px per inch, so on a
+// scaled monitor a millimetre is MON_SCALE times more device pixels.
+const float WEB_PX_PER_MM = MON_SCALE * 96.0 / 25.4;
+
+// The relief at one point, in mm (y up, as paperweb's uv runs).
+float shade_at(vec2 mm) {
+    // NORMAL pass: central difference, exaggerate 7, one half-res texel.
+    const float S = 2.0 / WEB_PX_PER_MM;
+    float h0 = height_um(mm);
+    float sx = (height_um(mm + vec2(S, 0.0)) - height_um(mm - vec2(S, 0.0))) * 0.001 / (2.0 * S);
+    float sy = (height_um(mm + vec2(0.0, S)) - height_um(mm - vec2(0.0, S))) * 0.001 / (2.0 * S);
+    vec3 N = normalize(vec3(-sx * 7.0, -sy * 7.0, 1.0));
+
+    // SHADE pass: azimuth 116, altitude 50, gloss 0.5 at power 40.
+    const float AZ = radians(116.0), AL = radians(50.0);
+    vec3 L = vec3(cos(AL) * cos(AZ), cos(AL) * sin(AZ), sin(AL));
+    float shade = 1.0 + (dot(N, L) - L.z);
+    vec3 H = normalize(L + vec3(0.0, 0.0, 1.0));
+    shade += 0.5 * (pow(max(dot(N, H), 0.0), 40.0) - pow(H.z, 40.0));
+
+    // CAVITY: blur(h) - h at 0.8 mm, lambda 0.6. The separable Gaussian is
+    // replaced by a ring of taps at its sigma, which is enough for a field this
+    // smooth.
+    float blur = 0.0;
+    for (int k = 0; k < 6; k++) {
+        float a = float(k) * 1.0471976;
+        blur += height_um(mm + vec2(cos(a), sin(a)) * (0.8 / 3.0 * 2.0));
+    }
+    float dH = (blur / 6.0 - h0) * 0.001 * 40.0;
+    shade -= 0.6 * max(dH, 0.0);
+
+    // highlight shoulder toward a 1.22 ceiling
+    if (shade > 1.0) shade = 1.0 + 0.22 * (1.0 - exp(-(shade - 1.0) / 0.22));
+    return shade;
+}
+
+vec3 apply_paper(vec3 src, vec2 frag, vec2 res) {
+    vec2 mm = frag / WEB_PX_PER_MM;
+
+    // paperweb computes the relief at HALF resolution and the composite samples
+    // it bilinearly. That upsample is what softens the creases; shading every
+    // pixel directly drew them as hard dark lines. So shade the four nearest
+    // half-res texel centres and blend, as the GPU's sampler would.
+    vec2 hp = frag * 0.5 - 0.5;
+    vec2 b = floor(hp), f = hp - b;
+    vec2 c = (b + 0.5) * 2.0 / WEB_PX_PER_MM;   // centre of texel b, in mm
+    const float T = 2.0 / WEB_PX_PER_MM;        // one half-res texel, mm
+    float shade = mix(mix(shade_at(c),               shade_at(c + vec2(T, 0.0)), f.x),
+                      mix(shade_at(c + vec2(0.0, T)), shade_at(c + vec2(T, T)),   f.x), f.y);
+
+    // COMPOSITE: duotone 0.5, warm highlights, cool shadows.
+    float s = shade - 1.0;
+    vec3 warm = mix(vec3(1.0), vec3(1.02, 1.0, 0.96), clamp(s * 4.0, 0.0, 1.0) * 0.5);
+    vec3 cool = mix(vec3(1.0), vec3(0.90, 0.92, 0.98), clamp(-s * 4.0, 0.0, 1.0) * 0.5);
+    return clamp(src * CREAM * shade * albedo(mm) * warm * cool, 0.0, 1.0);
+}
+#endif
 
 void main() {
-    vec4 pixColor = texture(tex, v_texcoord);
-    float luma = dot(pixColor.rgb, vec3(0.299, 0.587, 0.114));
-
-    // EARLY-OUT. smoothstep(U_GATE_LO, .., luma) is EXACTLY 0.0 for
-    // luma <= U_GATE_LO, and mix(x, y, 0.0) is exactly x — so on dark pixels the
-    // ~90-hash pipeline below was computed in full and thrown away. Output is
-    // bit-identical. Legal under non-uniform control flow: nothing below uses an
-    // implicit derivative (no dFdx/dFdy; the only texture() is above).
-    // Measured on Vega 8 under continuous redraw: 96.4% -> 72.3% GPU busy,
-    // i.e. this removes 53% of the shader's cost and 68% of its extra watts.
-    if (luma < U_GATE_LO) {
-        fragColor = vec4(pixColor.rgb, 1.0);
-        return;
+    vec3 src = texture(tex, v_texcoord).rgb;
+    float luma = dot(src, vec3(0.299, 0.587, 0.114));
+    float blend = smoothstep(GATE_LO, GATE_HI, luma);
+    vec3 result = src;
+    // Branch, not return: see the header. Dark pixels skip the whole field.
+    if (blend > 0.0) {
+        vec2 res = vec2(textureSize(tex, 0));
+        result = mix(src, apply_paper(src, gl_FragCoord.xy, res), blend);
     }
-
-    vec2 res = vec2(textureSize(tex, 0));
-    // MUST be centred on 0: fold centres are placed in a unit circle about the
-    // origin, so an uncentred 0..N range puts them all off-screen and leaves a
-    // single giant radial gradient instead of interacting crease cells.
-    vec2 patternUV = 5.0 * (v_texcoord - 0.5) * vec2(res.x / res.y, 1.0);
-
-    // --- FADE: big-scale mask, cubed. Real paper is not uniformly distressed.
-    // Without this every effect is statistically stationary — the single
-    // biggest "this is procedural" tell.
-    float fade = U_FADE * fbm3n(patternUV * 0.17 + U_SEED * 3.0);
-    fade = clamp(8.0 * fade * fade * fade, 0.0, 1.0);
-
-    // --- Each feature contributes its gradient AT ITS OWN SCALE. One global
-    // epsilon cannot see both pixel-scale grain and page-scale folds.
-    vec2 normal = vec2(0.0);
-
-    // roughness — pixel scale. Do NOT "optimise" this into fbm3d(): the two
-    // samples are 0.2 noise units apart (0.8 LATTICE CELLS at octave 2, ~1.3px),
-    // so this is a wide band-pass difference of two nearly decorrelated samples,
-    // NOT a derivative. The analytic gradient produces visibly different grain.
-    // This is now the dominant cost (24 of ~49 hashes/px) and there is no way to
-    // cut it without changing the look.
-    vec2 rUv = 1.5 * (gl_FragCoord.xy - 0.5 * res);
-    float rough = fbm3((rUv + vec2(1.0, 0.0)) * 0.1) - fbm3((rUv - vec2(1.0, 0.0)) * 0.1);
-
-    // fiber — curly filaments, mid band
-    float fiber = 0.5 * (fiberNoise(patternUV * 2.2) - 1.0);
-
-    // folds — page scale, twice at offset UV
-    vec2 fUv = patternUV * 0.22;
-    vec2 w, w2;
-    folds2(fUv, fUv + 0.007, U_FOLDCOUNT, U_SEED, w, w2);
-    vec2 ridge = max(vec2(0.0), w + w2);
-
-    // curvature-driven wear: scratches concentrate on raised crease ridges,
-    // which also *correlates* the layers instead of stacking them independently
-    float wear = clamp(length(ridge) * 2.5, 0.0, 1.0);
-    float scr = scratches(patternUV * 2.2, wear);
-
-    // fade modulates everything
-    ridge = mix(ridge, vec2(0.0), fade);
-    scr   = mix(scr, 0.0, fade);
-    fiber *= mix(1.0, 0.5, fade);
-    rough *= mix(1.0, 0.5, fade);
-
-    normal += U_FOLDS * 4.0 * ridge;
-    normal += U_ROUGHNESS * 1.5 * rough;
-    normal += U_FIBER * fiber;
-    normal -= U_SCRATCH * 3.0 * scr;
-
-    // Light must have same-sign x and y. `rough`, `fiber` and `scr` are scalars
-    // added to BOTH normal components, so their relief is pinned to the 45°
-    // diagonal; a light like (-0.6, 0.8, ..) makes those terms cancel
-    // (-0.4 + 0.53 = 0.13) and throws away ~80% of the response. Measured: fixing
-    // this recovered grain 6.5x (0.13% -> 0.85% luminance variation).
-    // (`folds` adds a genuine vec2 and is exempt.)
-    vec3 N = normalize(vec3(normal, U_RELIEF_Z));
-    vec3 lightDir = normalize(vec3(1.0, 2.0, 1.0));
-    // Re-centred so a FLAT normal yields exactly 1.0. dot((0,0,1), normalize(1,2,1))
-    // = 0.40825, so the old mix(0.90, 1.06, ..) evaluated to 0.9653 on flat paper —
-    // i.e. the page was 3.5% dark before any relief existed, and every dark-on-light
-    // contrast ratio paid for it. Same 0.16 span, zero extra ops (both constants),
-    // +6.7% page luminance (#767676: 3.26 -> 3.52).
-    // 0.925 * 1.0947 = 1.013 can clip R, but only on already-near-white highlights.
-    float shade = mix(0.9347, 1.0947, clamp(dot(N, lightDir), 0.0, 1.0));
-
-    // ambient occlusion: creases sit in shadow
-    float ao = 1.0 - U_AO * 0.12 * clamp(length(ridge) * 1.5, 0.0, 1.0);
-
-    // Warm cream, specified as sRGB #ECE1CD. The whole shader is a pure MULTIPLY
-    // (result = s * lerp(1, T, blend)), and multiply commutes exactly with a
-    // power-law EOTF — so working in encoded space is correct here, not a bug.
-    // Converting to linear would cost 6 pow() AND silently reinterpret shade's
-    // 0.90 as linear reflectance, making the relief ~2.4x stronger. Don't.
-    vec3 paperTone = vec3(0.925, 0.884, 0.804);
-
-    // NB: this gate keys on the PIXEL's own luma, so it cannot tell "light
-    // background" from "light foreground" — light-on-dark text (e.g. kitty's
-    // #c0caf5 fg, luma 0.80) gets ~90% papered too. Harmless while reading a
-    // dark-on-light page, which is the only time this shader is meant to be on.
-    // Rec.601 coefficients are correct here: they are DEFINED for gamma-encoded
-    // R'G'B'. Rec.709's are for linear light; using them would introduce the
-    // mismatch, not fix it.
-    float blend = smoothstep(U_GATE_LO, U_GATE_HI, luma);
-
-    vec3 papered = pixColor.rgb * paperTone * shade * ao;
-    vec3 result = mix(pixColor.rgb, papered, blend);
-
     fragColor = vec4(result, 1.0);
 }

@@ -30,38 +30,31 @@ DEBOUNCE_MS = 90
 
 # name, label, lo, hi, default, step, tooltip
 KNOBS = [
-    ("STRENGTH", "strength", 0.0, 3.0, 1.8, 0.05,
-     "Master amplitude. Scales every layer. calm=1.0, bold=2.2, worn=1.8"),
-    ("SCRATCH_THRESH", "scratch density", 0.60, 0.999, 0.85, 0.005,
-     "BASELINE scratch probability, INVERTED: 0.985 = 1.5% of cells = ~3 scratches "
-     "on the whole screen (the old default, why they looked missing). "
-     "Lower = more scratches."),
-    ("SCRATCH_GAIN", "scratch depth", 0.0, 4.0, 1.8, 0.05,
-     "How dark/deep each scratch cuts."),
-    ("FOLD_GAIN", "fold depth", 0.0, 5.0, 2.4, 0.05,
-     "Page-scale crease depth. Folds are cm-scale: the only layer paper's own "
-     "0.33mm optical blur does not touch."),
-    ("FOLD_COUNT", "fold count", 0.0, 8.0, 8.0, 1.0,
-     "Number of crease centres (max 8 -- the GLSL loop is bounded)."),
-    ("ROUGH_GAIN", "roughness", 0.0, 3.0, 1.0, 0.05,
-     "Pixel-scale grain. MEASURED as the dominant layer: sd 1.17% of a 1.15% total."),
-    ("FIBER_GAIN", "fibre", 0.0, 3.0, 1.0, 0.05,
-     "|grad fbm| filaments. Paper physics says this should matter least -- the "
-     "bulk MTF at fibre scale is 0.055."),
-    ("AO_GAIN", "crease shadow", 0.0, 3.0, 1.0, 0.05,
-     "Ambient occlusion in the fold valleys."),
-    ("FADE_AMT", "patchiness", 0.0, 1.0, 0.70, 0.01,
-     "Non-stationarity: how unevenly distressed the sheet is. The shader's own "
-     "comment calls a stationary result 'the single biggest this-is-procedural "
-     "tell'. Feeds an 8*x^3 curve -- above ~0.72 it saturates and switches folds "
-     "and scratches OFF."),
-    ("RELIEF_Z", "relief flatness", 0.3, 6.0, 1.8, 0.05,
-     "Normal's z. LOWER = more dramatic relief. Not strength-scaled."),
-    ("SEED", "seed", 0.0, 40.0, 3.0, 1.0,
-     "Reroll the pattern: different folds, different scratches."),
+    ("STRENGTH", "strength", 0.0, 1.5, 0.45, 0.01,
+     "recolor-paper. Master amplitude of the PDF look; 0.45 is zathurarc's."),
+    ("TOOTH", "tooth", 0.0, 3.0, 1.0, 0.05,
+     "Fine formation grain, as paperlab bakes it into zathura's tile. 1 = as baked."),
+    ("DEPTH", "cockle depth", 0.0, 2.0, 0.275, 0.005,
+     "recolor-paper-depth: the broad lit undulation."),
+    ("DEPTH_SCALE", "cockle size (mm)", 2.0, 80.0, 14.5, 0.5,
+     "recolor-paper-depth-scale: cockle wavelength."),
+    ("MARKS", "marks", 0.0, 1.0, 0.28, 0.01,
+     "recolor-paper-marks: rare large light/dark blotches."),
+    ("MARK_DENSITY", "mark density", 0.0, 1.0, 0.15, 0.01,
+     "Fraction of mark cells that carry one."),
+    ("PITS", "pits", 0.0, 1.5, 0.545, 0.01,
+     "recolor-paper-pits: small dark dents."),
+    ("PIT_DENSITY", "pit density", 0.0, 0.2, 0.015, 0.001,
+     "Fraction of pit cells that carry one."),
+    ("SCRATCHES", "scratches", 0.0, 1.0, 0.344, 0.01,
+     "recolor-paper-scratches: sparse thin lines, mostly light."),
+    ("SCRATCH_DENSITY", "scratch density", 0.0, 0.3, 0.036, 0.001,
+     "Fraction of scratch cells that carry one."),
+    ("SEED", "seed", 0.0, 40.0, 1.0, 1.0,
+     "Reroll the cockle and blemishes (zathura uses page index + 1)."),
 ]
-# the script's env var names differ for two of them
-ENV = {"RELIEF_Z": "PAPER_RELIEF_Z_VAL", "SEED": "PAPER_SEED_VAL"}
+# every knob's env var is PAPER_<name>
+ENV = {}
 
 # Palette. matugen generates ~/.config/theme/colors.json from theme/matugen/
 # config.toml, so reading it here means this HUD follows a palette switch instead
