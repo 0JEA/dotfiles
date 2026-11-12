@@ -4,7 +4,6 @@
 [[ $- != *i* ]] && return
 
 # --- FUNCTIONS ---
-export GEMINI_API_KEY="AIzaSyCeQNCEUY-iFlwnuIlKF82GIIg725KmmNg"
 
 # --- ALIASES ---
 alias ls='eza --icons --git'

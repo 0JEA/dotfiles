@@ -1,7 +1,6 @@
 # ~/.zshrc
 
 # --- FUNCTIONS ---
-export GEMINI_API_KEY="AIzaSyCeQNCEUY-iFlwnuIlKF82GIIg725KmmNg"
 
 # GitHub MCP server reads its token from here; pulled from the gh keyring (no plaintext token)
 export GITHUB_PERSONAL_ACCESS_TOKEN="$(gh auth token)"
