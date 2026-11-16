@@ -26,6 +26,29 @@ HISTSIZE=1000
 SAVEHIST=1000
 HISTFILE=~/.zsh_history
 
+# --- VI MODE (match nvim) ---
+# zsh already picks vi mode because EDITOR=nvim; say so explicitly.
+bindkey -v
+KEYTIMEOUT=20  # 200ms: window for the jj chord and for Esc
+bindkey -M viins 'jj' vi-cmd-mode          # same as the nvim jj -> <Esc> map
+bindkey -M viins '^P' up-line-or-history   # history without the arrow keys
+bindkey -M viins '^N' down-line-or-history
+bindkey -M viins '^?' backward-delete-char # backspace past where insert began
+bindkey -M viins '^H' backward-delete-char
+bindkey -M viins '^W' backward-kill-word
+# v in normal mode opens the current command in nvim
+autoload -Uz edit-command-line
+zle -N edit-command-line
+bindkey -M vicmd 'v' edit-command-line
+# Block cursor in normal mode, beam in insert, like nvim
+# (hook widgets, so starship's own keymap-select hook keeps working)
+autoload -Uz add-zle-hook-widget
+function _vi_cursor_shape {
+  if [[ $KEYMAP == vicmd ]]; then print -n '\e[2 q'; else print -n '\e[6 q'; fi
+}
+add-zle-hook-widget keymap-select _vi_cursor_shape
+add-zle-hook-widget line-init _vi_cursor_shape
+
 # Prompt initialization
 autoload -Uz compinit && compinit
 # XDG user dirs (Documents/Downloads/Pictures/...). Without this the vars are

@@ -33,6 +33,29 @@ bind-key C-a send-prefix
 # Reload config with 'r' key (useful for rapid testing)
 bind r source-file ~/.tmux.conf \; display-message "Config reloaded!"
 
+# --- VI KEYS (match nvim) ---
+# Copy mode (prefix [) moves with hjkl, w/b, gg/G, / and ? like nvim.
+setw -g mode-keys vi
+set -g status-keys vi
+set -s copy-command "wl-copy"
+bind-key -T copy-mode-vi v send-keys -X begin-selection
+bind-key -T copy-mode-vi V send-keys -X select-line
+bind-key -T copy-mode-vi C-v send-keys -X rectangle-toggle
+bind-key -T copy-mode-vi y send-keys -X copy-pipe-and-cancel
+bind-key -T copy-mode-vi Escape send-keys -X cancel
+
+# Panes: prefix then the same letters as nvim's <C-w> commands.
+bind h select-pane -L
+bind j select-pane -D
+bind k select-pane -U
+bind l select-pane -R
+bind -r H resize-pane -L 5
+bind -r J resize-pane -D 5
+bind -r K resize-pane -U 5
+bind -r L resize-pane -R 5
+bind s split-window -v -c "#{pane_current_path}"
+bind v split-window -h -c "#{pane_current_path}"
+
 # --- MOUSE & STATUS BEHAVIOR ---
 set -g mouse on
 set -g status off
