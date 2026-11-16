@@ -3,16 +3,6 @@
 
 vim.keymap.set("i", "jj", "<Esc>", { desc = "Exit insert mode" })
 
--- Jump over closing bracket/quote with Tab
-vim.keymap.set("i", "<Tab>", function()
-  local col = vim.fn.col(".")
-  local char = vim.fn.getline("."):sub(col, col)
-  if char:match("[%)%]%}'\"]") then
-    return "<Right>"
-  end
-  return "<Tab>"
-end, { expr = true, desc = "Jump over closing bracket or insert tab" })
-
 local brd_buf = nil
 
 vim.api.nvim_create_user_command("Brd", function()
