@@ -39,6 +39,7 @@ hyprland
 hyprlock
 hyprpolkitagent
 hyprshot
+hyprpicker
 imv
 jdk-openjdk
 kde-cli-tools

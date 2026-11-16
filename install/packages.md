@@ -61,6 +61,7 @@ Run `bash install/check-packages.sh` after editing any list or this file. It fai
 | `hyprlock` | Screen locker |
 | `hyprpolkitagent` | Polkit authentication agent for Hyprland |
 | `hyprshot` | Screenshot tool |
+| `hyprpicker` | Colour picker; also freezes the screen for `screenshot.sh` region shots and `colorpick.sh` |
 | `uwsm` | Universal Wayland session manager |
 | `xdg-desktop-portal-hyprland` | XDG portal for Hyprland (screen share, file picker) |
 | `xdg-desktop-portal-gtk` | GTK XDG portal fallback |
