@@ -101,8 +101,54 @@ return {
       -- palette. fg_gutter (gray2) is the dimmest slot that still separates
       -- from both bg and bg_hl, so the rule stays visible on the cursorline
       -- row without competing with the text.
+      --
+      -- MatchParen marks the partner of the paren under the cursor. Stock
+      -- tokyonight draws it as orange bold text, and orange is also one of
+      -- the rainbow-delimiters depth colours (lua/plugins/scheme.lua), so in
+      -- Scheme the matched pair differed from its neighbours by weight alone.
+      -- A filled block cannot be confused with any depth colour, because the
+      -- depth colours only ever set the foreground.
+      --
+      -- The other MatchParen* groups belong to lua/parenmatch.lua, which
+      -- decides what gets painted. The paren AT the caret (Near, Unmatched)
+      -- must never be given a background: a bar caret drawn on a filled cell
+      -- disappears. Underline keeps it distinct from the depth colours.
       on_highlights = function(hl, c)
         hl.ColorColumn = { bg = c.fg_gutter }
+        hl.MatchParen = { fg = c.bg_dark, bg = c.yellow, bold = true }
+        hl.MatchParenNear = { fg = c.yellow, bold = true, underline = true }
+        hl.MatchParenUnmatched = { fg = c.error, bold = true, underline = true }
+        hl.MatchParenNote = { fg = c.comment }
+        hl.MatchParenNoteError = { fg = c.error }
+
+        -- Paren depth colours: RainbowDepth1..12, handed to rainbow-delimiters
+        -- in lua/plugins/scheme.lua. Keep the count (12) the same in both.
+        --
+        -- The plugin's stock set is the seven palette accents, and several of
+        -- those are near-twins (yellow/orange, blue/violet/cyan), so deep
+        -- nesting read as about four colours. These are generated instead:
+        -- twelve hues spaced evenly round the wheel, at the palette accents'
+        -- average saturation and lightness so they still sit with the theme.
+        -- Two things keep neighbours apart:
+        --   * depth order steps five hues at a time, so each depth is 150
+        --     degrees of hue from the one before it;
+        --   * alternate hues are lighter and darker, so the two hues that are
+        --     only 30 degrees apart also differ in brightness.
+        -- hsluv ships inside tokyonight, so this adds no dependency.
+        local hsluv = require("tokyonight.hsluv")
+        local accents = { c.red, c.orange, c.yellow, c.green, c.cyan, c.blue, c.magenta }
+        local sat, light = 0, 0
+        for _, hex in ipairs(accents) do
+          local hsl = hsluv.hex_to_hsluv(hex)
+          sat, light = sat + hsl[2] / #accents, light + hsl[3] / #accents
+        end
+        local hue0 = hsluv.hex_to_hsluv(c.red)[1] + 10
+        for depth = 1, 12 do
+          local k = (depth - 1) * 5 % 12
+          hl["RainbowDepth" .. depth] = {
+            fg = hsluv.hsluv_to_hex({ (hue0 + k * 30) % 360, sat, light + (k % 2 == 0 and 6 or -6) }),
+          }
+        end
       end,
     },
     config = function(_, opts)
@@ -125,6 +171,10 @@ return {
     build = "make install_jsregexp",
     dependencies = { "rafamadriz/friendly-snippets" },
     config = function()
+      require("luasnip").setup({
+        region_check_events = "CursorMoved,InsertEnter",
+        delete_check_events = "TextChanged,InsertLeave",
+      })
       require("luasnip.loaders.from_vscode").lazy_load()
     end,
   },

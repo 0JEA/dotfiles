@@ -121,7 +121,21 @@ return {
   -- structure, so this is closer to syntax highlighting than decoration: it is
   -- what makes a misplaced closing paren visible instead of something you find
   -- by counting. Driven by the same tree-sitter parsers installed below.
-  { "HiPhish/rainbow-delimiters.nvim" },
+  --
+  -- Twelve depth colours instead of the plugin's seven. The RainbowDepthN
+  -- groups are defined in on_highlights in lua/plugins/example.lua, where the
+  -- palette is available; keep the count (12) the same in both. Depth 13
+  -- wraps back to the first colour.
+  {
+    "HiPhish/rainbow-delimiters.nvim",
+    init = function()
+      local groups = {}
+      for depth = 1, 12 do
+        groups[depth] = "RainbowDepth" .. depth
+      end
+      vim.g.rainbow_delimiters = { highlight = groups }
+    end,
+  },
 
   {
     "nvim-treesitter/nvim-treesitter",
