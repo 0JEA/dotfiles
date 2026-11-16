@@ -30,6 +30,7 @@ alias tree='eza --tree --icons'
 alias grep='grep --color=auto'
 alias qutebrowser='setsid qutebrowser &'
 alias pep9='setsid env QT_QPA_PLATFORM=xcb JAVA_TOOL_OPTIONS="-Dawt.useSystemAAFontSettings=lcd -Dswing.aatext=true -Dsun.java2d.xrender=true -Dsun.java2d.uiScale=1.5 -Dswing.defaultlaf=com.sun.java.swing.plaf.gtk.GTKLookAndFeel" ~/applications/pep.AppImage &'
+alias r5rs='plt-r5rs'
 
 # --- STARSHIP PROMPT ---
 eval "$(starship init bash)"
@@ -42,15 +43,18 @@ if [[ -z "$TMUX" ]] && [[ "$TERM" != "linux" ]]; then
 fi
 export PATH="$HOME/.local/bin:$PATH"
 
-# SSH agent for GitHub deploy key
-if [ -z "$SSH_AUTH_SOCK" ]; then
-  eval $(ssh-agent -s) > /dev/null 2>&1
-fi
+# SSH agent for GitHub deploy key.
+# ONE persistent agent per login, via socket-activated `systemctl --user ssh-agent.socket`.
+# Do NOT spawn a per-shell agent here: that re-decrypted the passphrase-protected
+# deploy key on EVERY new terminal (~475ms of KDF blocking the prompt) and leaked
+# one ssh-agent process + socket per window. Measured 2026-08-28: 519ms -> 47ms.
+[ -z "$SSH_AUTH_SOCK" ] && export SSH_AUTH_SOCK="${XDG_RUNTIME_DIR:-/run/user/$UID}/ssh-agent.socket"
+# Load the key off the critical path so it never blocks the prompt.
 if ! ssh-add -l 2>/dev/null | grep -q rosecityogs; then
-  SSH_ASKPASS=/home/coke/websites/.ssh_askpass.sh SSH_ASKPASS_REQUIRE=force DISPLAY=dummy ssh-add /home/coke/websites/rosecityogs_deploy_key < /dev/null 2>/dev/null
+  { SSH_ASKPASS=/home/coke/websites/.ssh_askpass.sh SSH_ASKPASS_REQUIRE=force DISPLAY=dummy \
+      ssh-add /home/coke/websites/rosecityogs_deploy_key < /dev/null 2>/dev/null; } &
+  disown 2>/dev/null
 fi
-export SSH_ASKPASS=/home/coke/websites/.ssh_askpass.sh
-export SSH_ASKPASS_REQUIRE=force
 export DISPLAY=:0
 
 # Added by Antigravity CLI installer
@@ -58,3 +62,4 @@ export PATH="/home/coke/.local/bin:$PATH"
 
 # Local scripts (repo-health.sh etc.)
 export PATH="$HOME/bin:$PATH"
+

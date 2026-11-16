@@ -16,8 +16,9 @@ scaling_mode = shrink
 # Loop back to the first image after the last (nice for slideshows/dirs)
 loop_input = true
 
-# Slideshow default duration, in seconds (only used if slideshow started)
-slideshow_duration = 5
+# Slideshow OFF. Any nonzero value here STARTS imv in slideshow mode (it is
+# not just a default), which auto-advances through images. Keep at 0.
+slideshow_duration = 0
 
 # --- KEY BINDINGS (vim-style navigation) ---
 [binds]
