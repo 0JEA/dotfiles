@@ -38,13 +38,13 @@ find_socket() {
     local pid
     # Anchor with ^: an unanchored match also catches the `hyprctl dispatch exec
     # "kitty --title ..."` launcher (same string in its cmdline, lower PID, sorts
-    # first), so find_socket would test /tmp/kitty-coke-<hyprctl-pid> and fail.
+    # first), so find_socket would test /tmp/kitty-<hyprctl-pid> and fail.
     # The launcher's cmdline starts with hyprctl (or /bin/sh -c), so ^kitty
     # excludes it. NOTE: `pgrep -x kitty -f PATTERN` is NOT the fix -- pgrep
     # rejects that as two patterns ("only one pattern can be provided").
     pid=$(pgrep -f "^kitty --title $WINDOW_TITLE" | head -1) || return 1
     [[ -n "$pid" ]] || return 1
-    local sock="/tmp/kitty-coke-$pid"
+    local sock="/tmp/kitty-$pid"
     [[ -S "$sock" ]] || return 1
     echo "$sock"
 }

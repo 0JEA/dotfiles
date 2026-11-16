@@ -5,6 +5,13 @@
 vim.g.mapleader = " "
 vim.g.maplocalleader = "\\"
 
+-- Paren matching is done by lua/parenmatch.lua, which retires the stock
+-- matchparen plugin when it loads. This setting only matters if that module
+-- ever fails to load and the stock plugin runs instead: it stops the stock
+-- plugin painting MatchParen (a filled block) on the paren at the caret,
+-- where it hides the thin insert-mode caret.
+vim.g.matchparen_disable_cursor_hl = 1
+
 -- Disable SQL ftplugin's built-in omni-completion and navigation maps
 vim.g.omni_sql_no_default_maps = 1
 
@@ -22,6 +29,9 @@ opt.clipboard = "unnamedplus" -- Sync with system clipboard
 opt.completeopt = "menu,menuone,noselect"
 opt.conceallevel = 3 -- Hide * markup for bold and italic
 opt.confirm = true -- Confirm to save changes before exiting modified buffer
+opt.colorcolumn = "80" -- clang-format's ColumnLimit. Must be a STRING, not a
+-- number: a number throws and aborts the rest of this file.
+opt.textwidth = 80
 opt.cursorline = true -- Enable highlighting of the current line
 opt.expandtab = true -- Use spaces instead of tabs
 opt.formatoptions = "jcroqlnt" -- tcqj
@@ -35,8 +45,8 @@ opt.mouse = "a" -- Enable mouse mode
 opt.number = true -- Print line number
 opt.pumblend = 10 -- Popup blend
 opt.pumheight = 10 -- Maximum number of entries in a popup
-opt.relativenumber = false -- Relative line numbers
-opt.scrolloff = 4 -- Lines of context
+opt.relativenumber = true -- Relative line numbers
+opt.scrolloff = 10 -- Lines of context
 opt.sessionoptions = { "buffers", "curdir", "tabpages", "winsize", "help", "globals", "skiprtp", "folds" }
 opt.shiftround = true -- Round indent
 opt.shiftwidth = 2 -- Size of an indent

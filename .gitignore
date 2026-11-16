@@ -47,3 +47,20 @@ gh/.config/gh/hosts.yml
 # pushed to this PUBLIC repo. Allow-rules are machine-local and can capture anything typed.
 claude/.claude/settings.json
 claude/.claude/settings.local.json
+
+# machine-local GitHub auth state. Held a gho_ token in commit 6f12ce1.
+# That token was ROTATED 2026-08-03, so the historical copy is now inert.
+# Keep this ignored anyway: the file holds live auth and must never be versioned.
+gh/.config/gh/hosts.yml
+
+# superpowers brainstorming companion (mockups, not config)
+.superpowers/
+
+# Python bytecode caches, created by running the themed helper scripts
+__pycache__/
+*.pyc
+
+# Per-machine selectors: untracked symlinks made by machine-setup.sh, each
+# pointing at a tracked machines/<laptop|desktop> file.
+hypr/.config/hypr/machine.conf
+waybar/.config/waybar/machine.jsonc

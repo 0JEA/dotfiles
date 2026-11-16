@@ -12,7 +12,10 @@
     // ── Module layout ─────────────────────────────────────────────────────
     "modules-left":   ["clock", "hyprland/window"],
     "modules-center": ["hyprland/workspaces"],
-    "modules-right":  ["custom/battery-power", "pulseaudio", "backlight", "tray"],
+    // modules-right is PER-MACHINE: it comes from machine.jsonc, an untracked
+    // symlink to machines/<laptop|desktop>.jsonc made by ~/dotfiles/machine-setup.sh.
+    // An empty right side of the bar means that symlink is missing.
+    "include": ["~/.config/waybar/machine.jsonc"],
 
     // ── Workspaces ────────────────────────────────────────────────────────
     // Uses filled/hollow circles so active workspace is visually obvious

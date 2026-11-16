@@ -1,0 +1,26 @@
+// DESKTOP waybar additions. Included by config.jsonc through machine.jsonc.
+{
+    "modules-right":  ["custom/wallpaper", "custom/battery-power", "pulseaudio", "backlight", "tray"],
+
+    // ── Wallpaper rotation ────────────────────────────────────────────────
+    // Backed by `wallctl` (~/.local/share/wallmgr). The module is signal-driven
+    // rather than short-polled: wallctl sends RTMIN+8 after any change, so the
+    // pill updates instantly. The 30s interval only keeps the "next in ..."
+    // countdown in the tooltip roughly fresh.
+    //
+    // Full paths on purpose ($HOME is expanded by the sh that waybar runs these in). Waybar is started by Hyprland, whose PATH does
+    // NOT include ~/.local/bin (that is added in .zshrc, which a compositor
+    // launch never sources), so a bare `wallctl` here silently renders nothing.
+    "custom/wallpaper": {
+        "exec": "$HOME/.local/bin/wallctl waybar",
+        "return-type": "json",
+        "interval": 30,
+        "signal": 8,
+        "tooltip": true,
+        "on-click": "$HOME/.local/bin/wallctl panel",
+        "on-click-middle": "$HOME/.local/bin/wallctl next",
+        "on-click-right": "$HOME/.local/bin/wallctl toggle",
+        "on-scroll-up": "$HOME/.local/bin/wallctl brightness +5",
+        "on-scroll-down": "$HOME/.local/bin/wallctl brightness -5"
+    }
+}

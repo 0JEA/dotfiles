@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=imv (Image Viewer)
+GenericName=Image Viewer
+Comment=View images in imv with the containing folder loaded
+Icon=image-x-generic
+Exec=/home/john/.local/bin/imv-open %F
+TryExec=/home/john/.local/bin/imv-open
+Terminal=false
+NoDisplay=false
+Categories=Graphics;Viewer;
+MimeType=image/png;image/x-png;image/jpeg;image/jpg;image/pjpeg;image/gif;image/webp;image/bmp;image/x-bmp;image/tiff;image/tiff-fx;image/avif;image/heif;image/jxl;image/qoi;image/svg+xml;image/x-farbfeld;
+Keywords=image;viewer;photo;picture;

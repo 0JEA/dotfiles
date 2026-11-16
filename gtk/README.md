@@ -1,7 +1,14 @@
 # GTK theming
 
-GTK was the one toolkit matugen never themed (kitty/waybar/tmux/wofi/starship/lazygit/hyprlock
-are templated; GTK was not), so Thunar ran on default light Adwaita until 2026-07-15.
+GTK is the one toolkit matugen never themes (kitty/waybar/tmux/wofi/starship/lazygit/hyprlock
+are templated; GTK is not), so GTK apps ran on default light Adwaita until 2026-07-15.
+
+> **2026-08-07 — this was laptop-only.** None of the setup below had ever been applied on the
+> desktop: no `~/.themes`, no `settings.ini` symlinks, `sassc` not installed, and gsettings still
+> on `Adwaita` / `color-scheme=default`. It is now applied on both, with the **Marigold** palette
+> (`Gruvbox-Orange-Dark`) rather than Tokyo Night. Note the machines differ: the laptop uses
+> thunar (GTK3), the desktop uses dolphin (Qt), so on the desktop the GTK apps that actually
+> matter are gimp, inkscape, firefox dialogs, pavucontrol and nm-connection-editor.
 
 ## What's here
 
@@ -16,15 +23,29 @@ ln -sfn ~/dotfiles/gtk/.config/gtk-4.0/settings.ini ~/.config/gtk-4.0/settings.i
 
 ## The theme itself is NOT in this repo
 
-`gtk-theme-name=Tokyonight-Dark` lives in `~/.themes/Tokyonight-Dark` (2.7 MB of generated CSS —
-a build artifact, not config). Rebuild it on a fresh machine:
+`gtk-theme-name=Gruvbox-Orange-Dark` lives in `~/.themes/` (generated CSS — a build artifact, not
+config). Rebuild it on a fresh machine:
 
 ```bash
 sudo pacman -S --needed sassc              # only real dep for GTK3 (~8 KiB + libsass)
-git clone https://github.com/Fausto-Korpsvart/Tokyo-Night-GTK-Theme.git
-cd Tokyo-Night-GTK-Theme/themes
-./install.sh -c dark -t default -s standard   # installs to ~/.themes
+git clone https://github.com/Fausto-Korpsvart/Gruvbox-GTK-Theme.git
+cd Gruvbox-GTK-Theme/themes
+./install.sh -c dark -t orange -s standard --tweaks black -l   # installs to ~/.themes
+gsettings set org.gnome.desktop.interface color-scheme 'prefer-dark'
+gsettings set org.gnome.desktop.interface gtk-theme 'Gruvbox-Orange-Dark'
 ```
+
+`-t orange` picks the orange accent; `--tweaks black` darkens the base from gruvbox's default
+`#282828` (a light green-grey that clashed badly with Marigold's `#1a1614`) down to `#0f0e0e`.
+`-l` symlinks the gtk-4.0 theme into `~/.config/gtk-4.0` for libadwaita apps.
+
+**This is the one surface that cannot match Marigold exactly.** The palette is authored upstream,
+so it is "close warm orange", not our hexes. Getting an exact match would mean authoring a GTK
+theme from scratch, which is not worth it for five apps.
+
+Expect one harmless warning on every GTK3 app start — `Theme parsing error: gtk-dark.css:1048:16:
+'border-spacing' is not a valid property name`. That is an upstream bug in the theme, not a
+misconfiguration.
 
 The README claims `murrine-engine` and `gnome-themes-extra` are required — **they are not, for
 GTK3**. Both are GTK2-era; Thunar is GTK3 and uses plain CSS. (`gtk-engine-murrine` isn't even in
@@ -49,8 +70,8 @@ core/extra anymore.) `sassc` is the only thing actually needed.
 
 ## Not done
 
-- Icons are `breeze-dark`. The upstream repo also ships a Tokyo Night icon set (`icons/`) if the
-  blue Breeze folders ever grate.
+- Icons are `breeze-dark`. The upstream repo also ships a gruvbox icon set (`icons/`) if the blue
+  Breeze folders ever grate against the orange.
 - Theme colors aren't sourced from `theme/matugen/config.toml`. Worth noting matugen adds nothing
-  dynamic here anyway: all 17 colors are `blend = false` and `apply-theme.sh` always passes the
-  same `#1a1b26`, so it emits identical output every run.
+  dynamic here anyway: all 18 colors are `blend = false` and `apply-theme.sh` always passes the
+  same base hex, so it emits identical output every run.

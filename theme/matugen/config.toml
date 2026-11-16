@@ -1,6 +1,27 @@
 [config]
 reload_apps = false
 
+# ── MARIGOLD ──────────────────────────────────────────────────────────────────
+# Warm, saturated orange palette. Every templated app reads from this block, so
+# this is the single place a palette change starts.
+#
+# NOTE ON THE SLOT NAMES: `blue`, `cyan` and `magenta` are historical names from
+# the Tokyo Night original, not descriptions of the hue any more. They are wired
+# to terminal ANSI color4 / color6 / color5 in kitty.conf.tera, AND to the
+# primary UI accent in waybar/wofi/tmux/hyprlock. Renaming them would mean
+# editing all seven templates, so the names stayed and the values changed.
+#
+#   blue    -> primary orange. Drives every UI accent and ANSI color4.
+#   cyan    -> muted teal.  Deliberately COOL.
+#   magenta -> sea blue.   Deliberately COOL. Was violet #bb5de5 under Reef;
+#              at 280deg it was the one hue outside the palette's green->orange
+#              sweep, and it drives nvim keywords/identifiers, so it dominated
+#              the editor. 210deg keeps it clear of cyan (180) and green (140).
+#
+# cyan and magenta stay cool on purpose. If all six ANSI hues were orange,
+# `ls`, diffs and syntax highlighting would lose hue distinction and turn to
+# mush. Two cool anchors keep terminal output readable while the desktop still
+# reads as warm, because the background, foreground and primary accent are.
 [config.custom_colors]
 bg        = { color = "#1a1b26", blend = false }
 bg_dark   = { color = "#16161e", blend = false }
@@ -18,7 +39,7 @@ red       = { color = "#f7768e", blend = false }
 selection = { color = "#33467c", blend = false }
 gray      = { color = "#292e42", blend = false }
 gray2     = { color = "#3b4261", blend = false }
-bright_black = { color = "#414868", blend = false }
+bright_black = { color = "#414868", blend = false }  # 3.26:1 on bg; #5c5148 measured 2.33 and failed
 
 [templates.kitty]
 input_path  = "~/dotfiles/theme/templates/kitty.conf.tera"
@@ -44,6 +65,51 @@ output_path = "~/.config/starship.toml"
 input_path  = "~/dotfiles/theme/templates/lazygit.yml.tera"
 output_path = "~/.config/lazygit/config.yml"
 
+[templates.hyprcolors]
+input_path  = "~/dotfiles/theme/templates/hypr-colors.conf.tera"
+output_path = "~/.config/hypr/colors.conf"
+
 [templates.hyprlock]
 input_path  = "~/dotfiles/theme/templates/hyprlock.conf.tera"
 output_path = "~/.config/hypr/hyprlock.conf"
+
+# Raw slots only. The mapping onto tokyonight's colour keys stays in
+# nvim/lua/plugins/example.lua, which is NOT templated, so no editor config can
+# be lost to a template omission.
+[templates.nvim]
+input_path  = "~/dotfiles/theme/templates/nvim-palette.lua.tera"
+output_path = "~/.config/nvim/lua/theme_palette.lua"
+
+# Data-only exports. Code files (the Python HUDs, the shell prompt scripts) READ
+# these rather than being templated themselves — matugen writes a rendered
+# template verbatim, so templating a script would hand matugen ownership of the
+# code and delete anything the template omitted.
+[templates.colors_json]
+input_path  = "~/dotfiles/theme/templates/colors.json.tera"
+output_path = "~/.config/theme/colors.json"
+
+[templates.colors_sh]
+input_path  = "~/dotfiles/theme/templates/colors.sh.tera"
+output_path = "~/.config/theme/colors.sh"
+
+# Pure config files, safe for matugen to own end to end.
+[templates.dunst]
+input_path  = "~/dotfiles/theme/templates/dunstrc.tera"
+output_path = "~/.config/dunst/dunstrc"
+
+[templates.imv]
+input_path  = "~/dotfiles/theme/templates/imv.config.tera"
+output_path = "~/.config/imv/config"
+
+[templates.capslockbar]
+input_path  = "~/dotfiles/theme/templates/capslock-bar.css.tera"
+output_path = "~/.config/waybar/capslock-bar.css"
+
+# TOKENS ONLY, imported by the hand-written eww/.config/eww/eww.scss. The panel's
+# layout CSS is deliberately NOT templated, for the same reason the Python HUDs
+# are not: matugen writes a rendered template verbatim and deletes whatever the
+# template omits, so handing it a stylesheet would hand it ownership of the
+# layout too.
+[templates.eww]
+input_path  = "~/dotfiles/theme/templates/eww-colors.scss.tera"
+output_path = "~/.config/eww/colors.scss"

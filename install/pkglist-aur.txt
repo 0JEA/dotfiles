@@ -1,5 +1,4 @@
-libfprint-git
+eww
 matugen
 spotify
-vesktop
 where-is-my-sddm-theme-git

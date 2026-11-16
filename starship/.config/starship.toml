@@ -1,6 +1,11 @@
 # ==============================================================================
 # STARSHIP CONFIGURATION (TOKYO NIGHT / CONNECTED PILLS)
 # ==============================================================================
+# MUST stay in sync with starship/.config/starship.toml. matugen renders this
+# template over ~/.config/starship.toml, and that path is a SYMLINK into this
+# repo, so apply-theme.sh writes straight through to the tracked file. Any
+# non-color setting omitted here is silently deleted from the repo on the next
+# re-theme.
 
 # Directory-scan budget. Default is 30ms, which $HOME (400+ entries) exceeds on a
 # cold btrfs metadata cache -> "Scanning current directory timed out" on first terminal.
@@ -21,15 +26,16 @@ when = "true"
 format = "$output"
 shell = ["bash"]
 
-# --- GIT SEGMENT ---
+# --- GIT PILL ---
 [git_branch]
-symbol = "\uE702"
-style = "bg:#73daca fg:#1a1b26 bold"
-format = " [\uE0B6](#73daca)[$symbol $branch]($style)"
+symbol = ""
+style = "bg:#bb9af7 fg:#1a1b26 bold"
+# Git is optional, so we'll keep it as a standalone pill for safety.
+format = "[](#bb9af7)[$symbol $branch]($style)"
 
 [git_status]
-style = "bg:#73daca fg:#1a1b26 bold"
-format = "[$all_status$ahead_behind]($style)[\uE0B4](fg:#73daca) "
+style = "bg:#bb9af7 fg:#1a1b26 bold"
+format = "[$all_status$ahead_behind]($style)[](#bb9af7) "
 
 # --- PROMPT SYMBOL ---
 [character]

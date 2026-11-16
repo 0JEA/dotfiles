@@ -1,0 +1,20 @@
+{
+    // ── Caps lock indicator bar ────────────────────────────────────────────────
+    // A minimal 3px bar that hugs the very top of the screen (no margin).
+    // The single module slides in/out via CSS transform when caps lock toggles.
+    "layer":       "overlay",
+    "position":    "top",
+    "height":      3,
+    "margin-top":  -34,
+    "margin-left": 0,
+    "margin-right": 0,
+    "exclusive":   false,
+
+    "modules-center": ["custom/capslock"],
+
+    "custom/capslock": {
+        "exec":        "~/.config/waybar/scripts/capslock.sh",
+        "interval":    1,
+        "return-type": "json"
+    }
+}

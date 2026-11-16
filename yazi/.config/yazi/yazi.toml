@@ -25,19 +25,14 @@ image = [
 
 [open]
 rules = [
+	# Order matters: yazi takes the FIRST match, so the catch-all must be LAST.
+	# The laptop's version had { mime = "*/*" } third, which made every rule after
+	# it dead. This machine's version had no catch-all at all.
+	{ mime = "inode/directory", use = [ "edit", "open", "reveal" ] },
 	{ mime = "application/pdf", use = [ "pdf" ] },
 	{ mime = "image/*", use = [ "image" ] },
-	{ mime = "*/*", use = [ "edit", "open", "reveal" ] },
 	{ mime = "text/*", use = [ "edit", "open", "reveal" ] },
 	{ mime = "application/json", use = [ "edit", "open", "reveal" ] },
 	{ mime = "application/javascript", use = [ "edit", "open", "reveal" ] },
-	{ mime = "text/*", name = "*.asm", use = [ "edit", "open", "reveal" ] },
-	{ mime = "text/*", name = "*.s", use = [ "edit", "open", "reveal" ] },
-	{ mime = "text/*", name = "*.css", use = [ "edit", "open", "reveal" ] },
-	{ mime = "text/*", name = "*.html", use = [ "edit", "open", "reveal" ] },
-	{ mime = "text/*", name = "*.lua", use = [ "edit", "open", "reveal" ] },
-	{ mime = "text/*", name = "*.py", use = [ "edit", "open", "reveal" ] },
-	{ mime = "text/*", name = "*.cpp", use = [ "edit", "open", "reveal" ] },
-	{ mime = "text/*", name = "*.c", use = [ "edit", "open", "reveal" ] },
-	{ mime = "text/*", name = "*.h", use = [ "edit", "open", "reveal" ] },
+	{ mime = "*/*", use = [ "edit", "open", "reveal" ] },
 ]

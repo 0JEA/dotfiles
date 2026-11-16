@@ -7,7 +7,7 @@
 
 [options]
 # Fill the background with the Tokyo Night bg color instead of a checkerboard
-background = 1a1b26
+background = 1a1614
 overlay = false
 
 # Start in a sane scaling mode: shrink to fit, but don't blow up small images

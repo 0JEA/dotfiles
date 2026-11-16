@@ -1,0 +1,5 @@
+// LAPTOP waybar additions. Included by config.jsonc through machine.jsonc.
+// No wallpaper module here: wallctl is not installed on the laptop.
+{
+    "modules-right":  ["custom/battery-power", "pulseaudio", "backlight", "tray"]
+}

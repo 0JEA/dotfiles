@@ -1,4 +1,4 @@
-/* ── Tokyo Night palette ────────────────────────────────────────────────────
+/* ── Marigold palette ────────────────────────────────────────────────────
    Named variables mirror the project-wide theme so color changes only need
    to happen in one place. bg uses rgba so the pill floats with slight
    transparency against the wallpaper.                                        */
@@ -37,7 +37,7 @@ window#waybar {
    The transition smooths color changes on state changes (e.g. mute toggle).  */
 #clock,
 #window,
-#custom-vpn,
+#custom-wallpaper,
 #custom-battery-power,
 #pulseaudio,
 #backlight,
@@ -107,19 +107,35 @@ window#waybar {
   color: @green;
 }
 
-#custom-battery-power.ac {
+#custom-battery-power.performance {
+  color: @orange;   /* warm to signal high-draw state */
+}
+
+#custom-battery-power.balanced {
   color: @green;
 }
 
-#custom-battery-power.battery {
-  color: @cyan;
+#custom-battery-power.power-saver {
+  color: @cyan;     /* cool to signal conservative state */
 }
 
 /* Critical overrides background entirely to make low-battery state urgent.
    Text uses the dark background color for legibility on the red fill.       */
 #custom-battery-power.critical {
   background-color: @red;
-  color: #1a1b26;   /* Tokyo Night bg — ensures contrast on red background */
+  color: #1a1b26;   /* theme bg — ensures contrast on red background */
+}
+
+/* ── Wallpaper rotation ─────────────────────────────────────────────────────
+   Two states only, and they differ by more than color: the paused state adds
+   a pause glyph in the module text, so the state is still readable without
+   relying on hue alone.                                                      */
+#custom-wallpaper {
+  color: @blue;
+}
+
+#custom-wallpaper.paused {
+  color: @comment;   /* de-emphasised: rotation is not currently running */
 }
 
 #pulseaudio {
